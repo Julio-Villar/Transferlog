@@ -1,4 +1,4 @@
-﻿/*
+/*
   TransferLog styles
   Estructura:
   1. Base y variables
@@ -190,3 +190,110 @@
   white-space: nowrap;
 }
 .btn-logout:hover { color: #A32D2D; border-color: #f5b0b0; }
+
+/* ── Desktop layout ──────────────────────────────────────── */
+@media (min-width: 900px) {
+  body {
+    background:
+      linear-gradient(180deg, rgba(24, 95, 165, .06), transparent 260px),
+      var(--bg);
+  }
+
+  .app {
+    max-width: 1180px;
+    min-height: 100vh;
+  }
+
+  .header {
+    margin: 18px 24px 0;
+    border: var(--border);
+    border-radius: var(--rad);
+    top: 12px;
+  }
+
+  .header h1 { font-size: 18px; }
+  .header p { font-size: 12px; }
+
+  .nav {
+    margin: 12px 24px 0;
+    border: var(--border);
+    border-radius: var(--rad);
+    overflow: hidden;
+    justify-content: center;
+  }
+
+  .nb {
+    flex: 0 1 150px;
+    flex-direction: row;
+    justify-content: center;
+    padding: 12px 14px;
+    font-size: 13px;
+    gap: 7px;
+  }
+
+  .nb i { font-size: 18px; }
+
+  .content {
+    padding: 18px 24px 32px;
+  }
+
+  .card {
+    padding: 18px;
+    margin-bottom: 0;
+  }
+
+  .sec.active {
+    animation: none;
+  }
+
+  #s-recibos.active {
+    max-width: 860px;
+    margin: 0 auto;
+  }
+
+  #s-nuevo.active,
+  #s-rutas.active,
+  #s-resumen.active,
+  #s-config.active {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    align-items: start;
+  }
+
+  #s-nuevo.active .btn.primary,
+  #s-nuevo.active .sep,
+  #s-resumen.active #summary-results {
+    grid-column: 1 / -1;
+  }
+
+  #s-rutas.active .card:last-child,
+  #s-config.active .card:last-child {
+    grid-column: 1 / -1;
+  }
+
+  #s-resumen.active #summary-results {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  #s-resumen.active #summary-results .sg,
+  #s-resumen.active #summary-results .card:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .modal {
+    max-width: 620px;
+    border-radius: 20px;
+    margin-bottom: 24px;
+  }
+
+  .mb {
+    align-items: center;
+  }
+
+  .auth-card {
+    max-width: 420px;
+  }
+}
