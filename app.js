@@ -1,4 +1,4 @@
-﻿/*
+/*
   TransferLog app
   Estructura:
   1. Configuración Supabase y cliente Auth
@@ -606,23 +606,27 @@ async function exportSummaryPDF() {
   doc.text(fmtCLP(total), M + 96, y + 13);
   y += 24;
 
-  const cols = ['#', 'Fecha', 'Solicita', 'Empresa', 'Vehículo', 'Desde', 'Hasta', 'Total'];
-  const xs   = [M, M+10, M+24, M+68, M+104, M+126, M+150, M+170];
+  // Columnas: # | Fecha | Detalle | Empresa | Vehículo | Desde | Hasta | Total
+  const cols = ['#', 'Fecha', 'Detalle', 'Empresa', 'Vehículo', 'Desde', 'Hasta', 'Total'];
+  const xs   = [M, M+10, M+26, M+82, M+118, M+138, M+158, M+176];
   doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(80, 80, 80);
   cols.forEach((h, i) => doc.text(h, xs[i], y));
   y += 2; doc.setDrawColor(24, 95, 165); doc.setLineWidth(0.5); doc.line(M, y, W - M, y); y += 4;
 
   doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setLineWidth(0.2);
   receipts.forEach((r, idx) => {
+    // Truncar detalle a los caracteres que caben en la columna (~54px de ancho)
+    const detalleRaw = (r.detalle || '').replace(/\n/g, ' ').trim();
+    const detalle = detalleRaw.length > 28 ? detalleRaw.substring(0, 27) + '…' : detalleRaw;
     if (idx % 2 === 0) { doc.setFillColor(248, 249, 250); doc.rect(M, y - 3, W - 2 * M, 7, 'F'); }
     doc.setTextColor(30, 30, 30);
     const vals = [
       String(r.num), fmtDate(r.fecha),
-      (r.solicita || '').substring(0, 18),
-      (r.empresa  || '').substring(0, 18),
+      detalle,
+      (r.empresa  || '').substring(0, 16),
       (r.vehiculo || ''),
-      (r.desde    || '').substring(0, 12),
-      (r.hasta    || '').substring(0, 12),
+      (r.desde    || '').substring(0, 10),
+      (r.hasta    || '').substring(0, 10),
       fmtCLP(r.total)
     ];
     vals.forEach((v, i) => doc.text(v, xs[i], y + 1));
