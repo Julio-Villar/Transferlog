@@ -10,89 +10,7 @@
 <title>TransferLog</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  :root{
-    --blue:#185FA5;--blue-light:#E6F1FB;--teal:#0F6E56;--teal-light:#E1F5EE;
-    --text:#1a1a1a;--text2:#6b6b6b;--bg:#f5f5f5;--bgw:#ffffff;
-    --border:0.5px solid #e0e0e0;--rad:12px;--rad-sm:8px;
-  }
-  @media(prefers-color-scheme:dark){
-    :root{--text:#f0f0f0;--text2:#aaaaaa;--bg:#1a1a1a;--bgw:#242424;--border:0.5px solid #333;}
-  }
-  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
-  .app{max-width:480px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column}
-  .header{background:var(--bgw);border-bottom:var(--border);padding:12px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:10}
-  .hicon{width:36px;height:36px;background:#E6F1FB;border-radius:var(--rad-sm);display:flex;align-items:center;justify-content:center;color:#185FA5;font-size:18px;flex-shrink:0}
-  .header h1{font-size:15px;font-weight:600;color:var(--text)}
-  .header p{font-size:11px;color:var(--text2)}
-  .db-badge{margin-left:auto;padding:3px 8px;border-radius:20px;font-size:10px;font-weight:600}
-  .db-badge.ok{background:#E1F5EE;color:#085041}
-  .db-badge.off{background:#f0f0f0;color:#888}
-  .db-badge.err{background:#FCEBEB;color:#A32D2D}
-  .nav{display:flex;background:var(--bgw);border-bottom:var(--border)}
-  .nb{flex:1;padding:9px 2px;font-size:10px;border:none;background:transparent;color:var(--text2);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;border-bottom:2px solid transparent;transition:all .15s;font-family:inherit}
-  .nb.active{color:#185FA5;border-bottom-color:#185FA5;font-weight:600}
-  .nb i{font-size:19px}
-  .content{flex:1;padding:10px;overflow-y:auto;padding-bottom:24px}
-  .sec{display:none}.sec.active{display:block}
-  .card{background:var(--bgw);border:var(--border);border-radius:var(--rad);padding:14px;margin-bottom:10px}
-  .ct{font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:11px}
-  .field{margin-bottom:9px}
-  .field label{display:block;font-size:12px;color:var(--text2);margin-bottom:3px}
-  .field input,.field select,.field textarea{width:100%;font-size:13px;padding:8px 10px;border:var(--border);border-radius:var(--rad-sm);background:var(--bgw);color:var(--text);font-family:inherit}
-  .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:#185FA5}
-  .field textarea{resize:none;height:64px}
-  .r2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-  .r3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
-  .btn{width:100%;padding:10px 14px;font-size:13px;font-weight:500;border:0.5px solid #ccc;border-radius:var(--rad-sm);background:transparent;color:var(--text);cursor:pointer;font-family:inherit;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:6px}
-  .btn:active{transform:scale(.97)}
-  .btn.primary{background:#185FA5;color:#fff;border-color:#185FA5}
-  .btn.green{background:#0F6E56;color:#fff;border-color:#0F6E56}
-  .btn.danger{color:#A32D2D;border-color:#f5b0b0}
-  .btn.sm{padding:5px 10px;font-size:11px;width:auto}
-  .vg{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
-  .vo{padding:10px;border:var(--border);border-radius:var(--rad-sm);cursor:pointer;text-align:center;font-size:12px;color:var(--text2);background:transparent;font-family:inherit;transition:all .15s}
-  .vo.sel{background:#E6F1FB;color:#0C447C;border-color:#B5D4F4;font-weight:600}
-  .ri{padding:9px 0;border-bottom:var(--border);cursor:pointer}
-  .ri:last-child{border-bottom:none}
-  .rh{display:flex;justify-content:space-between;align-items:flex-start}
-  .rn{font-size:11px;font-weight:600;color:#185FA5}
-  .rd{font-size:10px;color:var(--text2)}
-  .rw{font-size:12px;color:var(--text);margin-top:1px}
-  .rtot{font-size:14px;font-weight:600;color:var(--text)}
-  .tag{display:inline-flex;align-items:center;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:600}
-  .tag.Auto{background:#E6F1FB;color:#0C447C}
-  .tag.Furgón{background:#E1F5EE;color:#085041}
-  .tag.Sprinter{background:#FAEEDA;color:#633806}
-  .tag.Bus{background:#FBEAF0;color:#72243E}
-  .sg{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
-  .st{background:var(--bg);border-radius:var(--rad-sm);padding:12px}
-  .sl{font-size:10px;color:var(--text2);margin-bottom:3px}
-  .sv{font-size:20px;font-weight:600;color:var(--text)}
-  .sv.blue{color:#185FA5}
-  .cr{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px}
-  .chip{padding:3px 10px;border-radius:20px;font-size:11px;border:var(--border);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit}
-  .chip.on{background:#E6F1FB;color:#0C447C;border-color:#B5D4F4}
-  .tr{display:flex;justify-content:space-between;align-items:center;padding:7px 0}
-  .hr{border:none;border-top:var(--border);margin:2px 0}
-  .empty{text-align:center;padding:32px 16px;color:var(--text2);font-size:13px}
-  .empty i{font-size:36px;display:block;margin-bottom:8px;opacity:.4}
-  .mb{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;align-items:flex-end;justify-content:center}
-  .mb.open{display:flex}
-  .modal{background:var(--bgw);border-radius:20px 20px 0 0;padding:20px 16px;width:100%;max-width:480px;max-height:88vh;overflow-y:auto}
-  .mt{font-size:15px;font-weight:600;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
-  .xb{background:none;border:none;font-size:22px;cursor:pointer;color:var(--text2);line-height:1}
-  .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#185FA5;color:#fff;padding:8px 20px;border-radius:20px;font-size:12px;font-weight:500;z-index:200;display:none;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.2)}
-  .spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:4px}
-  @keyframes spin{to{transform:rotate(360deg)}}
-  .cfg-note{font-size:11px;color:var(--text2);margin-top:7px;line-height:1.6}
-  .sql-block{margin-top:10px;background:var(--bg);border-radius:var(--rad-sm);padding:10px;font-size:10px;font-family:'Courier New',monospace;color:var(--text);line-height:1.7;white-space:pre-wrap;border:var(--border)}
-  .sep{height:8px}
-  table.detail-tbl{width:100%;border-collapse:collapse}
-  table.detail-tbl td{padding:3px 0;font-size:12px;vertical-align:top}
-  table.detail-tbl td:first-child{color:var(--text2);width:46%}
-</style>
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
@@ -105,7 +23,10 @@
       <h1>TransferLog</h1>
       <p>Gestión de traslados de personal</p>
     </div>
-    <span class="db-badge off" id="db-badge">● Local</span>
+    <div class="user-chip">
+      <span class="user-email" id="user-email"></span>
+      <button class="btn-logout" onclick="logout()"><i class="ti ti-logout"></i> Salir</button>
+    </div>
   </div>
 
   <div class="nav">
@@ -138,12 +59,12 @@
         <div class="ct">Datos del servicio</div>
         <div class="field"><label>Fecha</label><input type="date" id="f-fecha"></div>
         <div class="r2">
-          <div class="field"><label>Chofer</label><input type="text" id="f-chofer" placeholder="Nombre del chofer"></div>
-          <div class="field"><label>Área</label><input type="text" id="f-area" placeholder="Área"></div>
+          <div class="field"><label>Chofer</label><select id="f-chofer"></select></div>
+          <div class="field"><label>Área</label><select id="f-area"></select></div>
         </div>
-        <div class="field"><label>Solicita</label><input type="text" id="f-solicita" placeholder="Quien solicita el servicio"></div>
-        <div class="field"><label>Empresa</label><input type="text" id="f-empresa" placeholder="Empresa"></div>
-        <div class="field"><label>Centro de costo</label><input type="text" id="f-costo" placeholder="Centro de costo"></div>
+        <div class="field"><label>Solicita</label><select id="f-solicita"></select></div>
+        <div class="field"><label>Empresa</label><select id="f-empresa"></select></div>
+        <div class="field"><label>Centro de costo</label><select id="f-costo"></select></div>
       </div>
       <div class="card">
         <div class="ct">Traslado</div>
@@ -162,11 +83,12 @@
           <div class="field"><label>Tdo. Espera</label><input type="text" id="f-espera" placeholder="min"></div>
           <div class="field"><label>Fin servicio</label><input type="time" id="f-fin"></div>
         </div>
+        <div class="field"><label>Paradas adicionales</label><input type="number" id="f-paradas" min="0" step="1" value="0" inputmode="numeric" oninput="updateReceiptTotal()"></div>
       </div>
       <div class="card">
         <div class="ct">Detalle del servicio</div>
         <div class="field"><textarea id="f-detalle" placeholder="Descripción del servicio, observaciones..."></textarea></div>
-        <div class="field"><label>Total ($)</label><input type="number" id="f-total" placeholder="0" inputmode="numeric"></div>
+        <div class="field"><label>Total ($)</label><input type="number" id="f-total" placeholder="0" inputmode="numeric" onchange="syncBaseTotalFromManual()"></div>
       </div>
       <button class="btn primary" id="save-btn" onclick="saveReceipt()"><i class="ti ti-check"></i> Guardar recibo</button>
       <div class="sep"></div>
@@ -215,60 +137,35 @@
     <!-- CONFIG -->
     <div class="sec" id="s-config">
       <div class="card">
-        <div class="ct">Conexión Supabase</div>
+        <div class="ct">Valor por parada adicional</div>
         <div class="field">
-          <label>URL del proyecto</label>
-          <input type="text" id="cfg-url" placeholder="https://xxxx.supabase.co" autocomplete="off" autocorrect="off">
+          <label>Monto en pesos ($)</label>
+          <input type="number" id="cfg-stop-value" placeholder="0" inputmode="numeric">
         </div>
-        <div class="field">
-          <label>Anon Key</label>
-          <input type="text" id="cfg-key" placeholder="eyJhbGciOiJIUzI1NiIs..." autocomplete="off" autocorrect="off">
-        </div>
-        <button class="btn primary" onclick="saveConfig()"><i class="ti ti-database"></i> Conectar y sincronizar</button>
-        <p class="cfg-note">Pega la URL y la Anon Key de tu proyecto Supabase. Los datos se sincronizarán en la nube y podrás acceder desde cualquier dispositivo.</p>
+        <button class="btn primary" onclick="saveExtraStopValue()"><i class="ti ti-device-floppy"></i> Guardar valor</button>
+        <p class="cfg-note">Este valor se multiplica por las paradas adicionales del recibo y se suma al total del viaje.</p>
       </div>
       <div class="card">
-        <div class="ct">Instrucciones Supabase</div>
-        <p style="font-size:12px;color:var(--text2);line-height:1.7">
-          1. Entra a <strong>supabase.com</strong> → tu proyecto<br>
-          2. Ve a <strong>Settings → API</strong><br>
-          3. Copia la <strong>Project URL</strong> y la <strong>anon public key</strong><br>
-          4. Pégalas arriba y presiona "Conectar"<br><br>
-          Ejecuta este SQL en el <strong>SQL Editor</strong> de Supabase para crear las tablas:
-        </p>
-        <div class="sql-block" id="sql-block">create table routes (
-  id uuid primary key default gen_random_uuid(),
-  origen text,
-  destino text,
-  valor numeric,
-  created_at timestamptz default now()
-);
-
-create table receipts (
-  id uuid primary key default gen_random_uuid(),
-  num integer,
-  vehiculo text,
-  fecha date,
-  chofer text,
-  area text,
-  solicita text,
-  empresa text,
-  costo text,
-  desde text,
-  hasta text,
-  hinicio text,
-  espera text,
-  fin text,
-  detalle text,
-  total numeric,
-  created_at timestamptz default now()
-);
-
-alter table routes enable row level security;
-alter table receipts enable row level security;
-create policy "allow all" on routes for all using (true);
-create policy "allow all" on receipts for all using (true);</div>
-        <button class="btn sm" style="margin-top:8px;width:100%" onclick="copySql()"><i class="ti ti-copy"></i> Copiar SQL</button>
+        <div class="ct">Registrar datos frecuentes</div>
+        <div class="field">
+          <label>Tipo de dato</label>
+          <select id="cfg-catalog-type">
+            <option value="choferes">Chofer</option>
+            <option value="solicitantes">Quien solicita</option>
+            <option value="areas">Área</option>
+            <option value="empresas">Empresa</option>
+            <option value="costos">Centro de costo</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Nombre o código</label>
+          <input type="text" id="cfg-catalog-value" placeholder="Escribe el dato a guardar">
+        </div>
+        <button class="btn primary" onclick="addCatalogItem()"><i class="ti ti-plus"></i> Agregar dato</button>
+      </div>
+      <div class="card">
+        <div class="ct">Datos guardados</div>
+        <div id="catalogs-list"></div>
       </div>
       <div class="card">
         <div class="ct">Datos locales</div>
@@ -298,508 +195,38 @@ create policy "allow all" on receipts for all using (true);</div>
   </div>
 </div>
 
-<script>
-const {jsPDF} = window.jspdf || {};
-
-// ── Estado global ──────────────────────────────────────────
-let SB_URL = '', SB_KEY = '', useSupabase = false;
-let selVehicle = '', curId = null, _curReceipt = null, vehFilter = 'todos';
-
-// ── LocalStorage ───────────────────────────────────────────
-const LS = {
-  get routes()   { try { return JSON.parse(localStorage.getItem('tl_r') || '[]') } catch { return [] } },
-  set routes(v)  { localStorage.setItem('tl_r', JSON.stringify(v)) },
-  get receipts() { try { return JSON.parse(localStorage.getItem('tl_p') || '[]') } catch { return [] } },
-  set receipts(v){ localStorage.setItem('tl_p', JSON.stringify(v)) },
-  get cfg()      { try { return JSON.parse(localStorage.getItem('tl_cfg') || '{}') } catch { return {} } },
-  set cfg(v)     { localStorage.setItem('tl_cfg', JSON.stringify(v)) }
-};
-
-// ── Supabase helpers ───────────────────────────────────────
-async function sbFetch(path, opts = {}) {
-  const res = await fetch(SB_URL + '/rest/v1/' + path, {
-    ...opts,
-    headers: {
-      'apikey': SB_KEY,
-      'Authorization': 'Bearer ' + SB_KEY,
-      'Content-Type': 'application/json',
-      'Prefer': 'return=representation',
-      ...(opts.headers || {})
-    }
-  });
-  if (!res.ok) throw new Error(await res.text());
-  const text = await res.text();
-  return text ? JSON.parse(text) : [];
-}
-
-// ── DB abstraction (Supabase o Local) ──────────────────────
-async function getRoutes()       { return useSupabase ? sbFetch('routes?order=created_at.asc') : LS.routes }
-async function addRouteDB(r)     {
-  if (useSupabase) return (await sbFetch('routes', { method: 'POST', body: JSON.stringify(r) }))[0];
-  const rows = LS.routes; rows.push({ ...r, id: Date.now().toString() }); LS.routes = rows; return rows[rows.length-1];
-}
-async function delRouteDB(id)    {
-  if (useSupabase) return sbFetch('routes?id=eq.' + id, { method: 'DELETE' });
-  LS.routes = LS.routes.filter(x => x.id !== id);
-}
-async function getReceipts()     { return useSupabase ? sbFetch('receipts?order=num.asc') : LS.receipts }
-async function addReceiptDB(r)   {
-  if (useSupabase) return (await sbFetch('receipts', { method: 'POST', body: JSON.stringify(r) }))[0];
-  const rows = LS.receipts; rows.push({ ...r, id: Date.now().toString() }); LS.receipts = rows; return rows[rows.length-1];
-}
-async function delReceiptDB(id)  {
-  if (useSupabase) return sbFetch('receipts?id=eq.' + id, { method: 'DELETE' });
-  LS.receipts = LS.receipts.filter(x => x.id !== id);
-}
-async function countReceipts()   {
-  if (useSupabase) { const r = await sbFetch('receipts?select=num&order=num.desc&limit=1'); return r.length ? r[0].num : 0; }
-  return LS.receipts.length;
-}
-
-// ── UI helpers ─────────────────────────────────────────────
-function toast(msg, dur = 2400) {
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.style.display = 'block';
-  setTimeout(() => t.style.display = 'none', dur);
-}
-function fmtDate(d) {
-  if (!d) return '';
-  const [y, m, da] = d.split('-'); return `${da}/${m}/${y}`;
-}
-function fmtCLP(n) { return '$' + Number(n).toLocaleString('es-CL'); }
-
-// ── Navegación ─────────────────────────────────────────────
-function nav(s) {
-  document.querySelectorAll('.sec').forEach(x => x.classList.remove('active'));
-  document.querySelectorAll('.nb').forEach(x => x.classList.remove('active'));
-  document.getElementById('s-' + s).classList.add('active');
-  document.getElementById('nb-' + s).classList.add('active');
-  if (s === 'recibos') renderReceipts();
-  if (s === 'rutas') renderRoutes();
-  if (s === 'nuevo') { initForm(); renderRouteSelect(); }
-}
-
-// ── Vehículo ───────────────────────────────────────────────
-function selVeh(v) {
-  selVehicle = v;
-  document.querySelectorAll('.vo').forEach(b => b.classList.remove('sel'));
-  document.getElementById('v-' + v).classList.add('sel');
-}
-
-// ── Formulario nuevo recibo ────────────────────────────────
-function initForm() {
-  const today = new Date().toISOString().split('T')[0];
-  document.getElementById('f-fecha').value = today;
-  selVehicle = '';
-  document.querySelectorAll('.vo').forEach(b => b.classList.remove('sel'));
-  ['f-chofer','f-area','f-solicita','f-empresa','f-costo','f-desde','f-hasta','f-espera','f-detalle','f-total'].forEach(id => {
-    const el = document.getElementById(id); if (el) el.value = '';
-  });
-  document.getElementById('f-ruta').value = '';
-  document.getElementById('f-hinicio').value = '';
-  document.getElementById('f-fin').value = '';
-}
-
-async function renderRouteSelect() {
-  const sel = document.getElementById('f-ruta');
-  const routes = await getRoutes();
-  sel.innerHTML = '<option value="">— Seleccionar ruta —</option>';
-  routes.forEach((r, i) => {
-    const opt = document.createElement('option');
-    opt.value = i;
-    opt.textContent = `${r.origen} → ${r.destino} (${fmtCLP(r.valor)})`;
-    sel.appendChild(opt);
-  });
-  sel._routes = routes;
-}
-
-function applyRoute() {
-  const sel = document.getElementById('f-ruta');
-  const i = parseInt(sel.value);
-  if (isNaN(i) || !sel._routes) return;
-  const r = sel._routes[i]; if (!r) return;
-  document.getElementById('f-desde').value = r.origen;
-  document.getElementById('f-hasta').value = r.destino;
-  document.getElementById('f-total').value = r.valor;
-}
-
-// ── Rutas ──────────────────────────────────────────────────
-async function addRoute() {
-  const o = document.getElementById('r-origen').value.trim();
-  const d = document.getElementById('r-destino').value.trim();
-  const v = document.getElementById('r-valor').value;
-  if (!o || !d || !v) { toast('Completa todos los campos.'); return; }
-  try {
-    await addRouteDB({ origen: o, destino: d, valor: Number(v) });
-    document.getElementById('r-origen').value = '';
-    document.getElementById('r-destino').value = '';
-    document.getElementById('r-valor').value = '';
-    toast('Ruta guardada ✓'); renderRoutes();
-  } catch(e) { toast('Error: ' + e.message); }
-}
-
-async function renderRoutes() {
-  const list = document.getElementById('routes-list');
-  try {
-    const routes = await getRoutes();
-    if (!routes.length) { list.innerHTML = '<div class="empty"><i class="ti ti-map-pin"></i>Sin rutas aún</div>'; return; }
-    list.innerHTML = routes.map(r => `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:var(--border)">
-        <div>
-          <div style="font-size:13px;font-weight:600">${r.origen} → ${r.destino}</div>
-          <div style="font-size:11px;color:var(--text2)">${fmtCLP(r.valor)}</div>
-        </div>
-        <button class="btn sm danger" onclick="delRoute('${r.id}')"><i class="ti ti-trash"></i></button>
+<!-- Auth screen -->
+<div id="auth-screen">
+  <div class="auth-box">
+    <div class="auth-logo">
+      <div class="hicon"><i class="ti ti-bus"></i></div>
+      <div>
+        <h2>TransferLog</h2>
+        <p>Gestión de traslados de personal</p>
       </div>
-    `).join('');
-  } catch(e) { list.innerHTML = '<div class="empty">Error al cargar rutas</div>'; }
-}
-
-async function delRoute(id) {
-  if (!confirm('¿Eliminar esta ruta?')) return;
-  await delRouteDB(id); toast('Ruta eliminada'); renderRoutes();
-}
-
-// ── Guardar recibo ─────────────────────────────────────────
-async function saveReceipt() {
-  const fecha    = document.getElementById('f-fecha').value;
-  const chofer   = document.getElementById('f-chofer').value.trim();
-  const solicita = document.getElementById('f-solicita').value.trim();
-  const total    = document.getElementById('f-total').value;
-  if (!fecha || !chofer || !solicita || !total) { toast('Faltan campos obligatorios.'); return; }
-  const btn = document.getElementById('save-btn');
-  btn.innerHTML = '<span class="spin"></span> Guardando...'; btn.disabled = true;
-  try {
-    const count = await countReceipts();
-    await addReceiptDB({
-      num: count + 1, vehiculo: selVehicle, fecha, chofer,
-      area:     document.getElementById('f-area').value,
-      solicita, empresa: document.getElementById('f-empresa').value,
-      costo:    document.getElementById('f-costo').value,
-      desde:    document.getElementById('f-desde').value,
-      hasta:    document.getElementById('f-hasta').value,
-      hinicio:  document.getElementById('f-hinicio').value,
-      espera:   document.getElementById('f-espera').value,
-      fin:      document.getElementById('f-fin').value,
-      detalle:  document.getElementById('f-detalle').value,
-      total:    Number(total)
-    });
-    toast('Recibo guardado ✓'); nav('recibos');
-  } catch(e) { toast('Error: ' + e.message); }
-  btn.innerHTML = '<i class="ti ti-check"></i> Guardar recibo'; btn.disabled = false;
-}
-
-// ── Listar recibos ─────────────────────────────────────────
-async function renderReceipts() {
-  const list = document.getElementById('receipt-list');
-  list.innerHTML = '<div class="empty"><i class="ti ti-refresh" style="opacity:.4;animation:spin .7s linear infinite"></i><br>Cargando...</div>';
-  try {
-    const receipts = (await getReceipts()).slice().reverse();
-    if (!receipts.length) {
-      list.innerHTML = '<div class="empty"><i class="ti ti-file-text"></i>Sin recibos aún.<br>Crea el primero en "Nuevo".</div>'; return;
-    }
-    list.innerHTML = '<div class="card">' + receipts.map(r => `
-      <div class="ri" onclick="openReceipt('${r.id}')">
-        <div class="rh">
-          <div>
-            <span class="rn">Recibo #${r.num}</span>
-            ${r.vehiculo ? `<span class="tag ${r.vehiculo}" style="margin-left:5px">${r.vehiculo}</span>` : ''}
-            <div class="rd">${fmtDate(r.fecha)}${r.desde && r.hasta ? ' · ' + r.desde + ' → ' + r.hasta : ''}</div>
-            <div class="rw">${r.solicita || ''}${r.empresa ? ' · ' + r.empresa : ''}</div>
-          </div>
-          <div class="rtot">${fmtCLP(r.total)}</div>
-        </div>
-      </div>
-    `).join('') + '</div>';
-  } catch(e) { list.innerHTML = '<div class="empty">Error al cargar recibos</div>'; }
-}
-
-// ── Ver detalle recibo ─────────────────────────────────────
-async function openReceipt(id) {
-  const receipts = await getReceipts();
-  const r = receipts.find(x => String(x.id) === String(id));
-  if (!r) return;
-  _curReceipt = r; curId = id;
-  document.getElementById('modal-ttl').textContent = 'Recibo #' + r.num;
-  const row = (l, v) => v ? `<tr><td style="color:var(--text2);padding:3px 0;font-size:12px;width:46%">${l}</td><td style="font-size:12px;padding:3px 0">${v}</td></tr>` : '';
-  document.getElementById('modal-body').innerHTML = `
-    <div style="margin-bottom:10px">
-      ${r.vehiculo ? `<span class="tag ${r.vehiculo}">${r.vehiculo}</span> ` : ''}
-      <span style="font-size:12px;color:var(--text2)">${fmtDate(r.fecha)}</span>
     </div>
-    <table style="width:100%;border-collapse:collapse">
-      ${row('Chofer', r.chofer)}${row('Área', r.area)}${row('Solicita', r.solicita)}
-      ${row('Empresa', r.empresa)}${row('Centro costo', r.costo)}
-      ${row('Desde', r.desde)}${row('Hasta', r.hasta)}
-      ${row('H. Inicio', r.hinicio)}${row('Tdo. Espera', r.espera)}${row('Fin servicio', r.fin)}
-    </table>
-    ${r.detalle ? `<div style="margin-top:8px;font-size:12px;color:var(--text2);border-top:var(--border);padding-top:6px">${r.detalle}</div>` : ''}
-    <div style="margin-top:8px;border-top:var(--border);padding-top:8px;display:flex;justify-content:space-between;align-items:center">
-      <span style="font-size:13px;font-weight:600">Total</span>
-      <span style="font-size:18px;font-weight:700;color:#185FA5">${fmtCLP(r.total)}</span>
+    <div class="auth-tabs">
+      <button class="auth-tab on" id="tab-login" onclick="showAuthTab('login')">Iniciar sesión</button>
+      <button class="auth-tab" id="tab-register" onclick="showAuthTab('register')">Registrarse</button>
     </div>
-  `;
-  document.getElementById('detail-modal').classList.add('open');
-}
-
-function closeModal() { document.getElementById('detail-modal').classList.remove('open'); curId = null; _curReceipt = null; }
-
-async function deleteReceipt() {
-  if (!confirm('¿Eliminar este recibo? Esta acción no se puede deshacer.')) return;
-  await delReceiptDB(curId); closeModal(); toast('Recibo eliminado'); renderReceipts();
-}
-
-// ── Exportar PDF recibo individual ─────────────────────────
-function exportPDF() {
-  if (!_curReceipt) { toast('Sin recibo seleccionado'); return; }
-  if (!jsPDF) { toast('jsPDF no cargó, intenta de nuevo'); return; }
-  const r = _curReceipt;
-  const doc = new jsPDF({ unit: 'mm', format: 'a5', orientation: 'portrait' });
-  const W = 148, M = 14;
-
-  // Encabezado
-  doc.setFillColor(24, 95, 165); doc.rect(0, 0, W, 20, 'F');
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(255, 255, 255);
-  doc.text('RECIBO DE SERVICIO', W / 2, 11, { align: 'center' });
-  doc.setFontSize(8); doc.setFont('helvetica', 'normal');
-  doc.text('TransferLog · Traslado de Personal', W / 2, 16.5, { align: 'center' });
-
-  let y = 27;
-  const box = (label, val, x, cy) => {
-    if (!val) return;
-    doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.setTextColor(110, 110, 110);
-    doc.text(label, x, cy);
-    doc.setFontSize(9); doc.setTextColor(20, 20, 20);
-    doc.text(String(val), x, cy + 5);
-  };
-  const hline = () => { doc.setDrawColor(220, 220, 220); doc.setLineWidth(0.2); doc.line(M, y - 1, W - M, y - 1); };
-
-  if (r.vehiculo) {
-    doc.setFontSize(8); doc.setTextColor(24, 95, 165); doc.setFont('helvetica', 'bold');
-    doc.text('● ' + r.vehiculo, M, y); y += 7;
-  }
-
-  box('Fecha', fmtDate(r.fecha), M, y);
-  box('Chofer', r.chofer, M + 38, y);
-  box('Área', r.area, M + 90, y);
-  y += 11; hline(); y += 3;
-
-  box('Solicita', r.solicita, M, y);
-  box('Empresa', r.empresa, M + 65, y);
-  y += 11; hline(); y += 3;
-
-  box('Centro de costo', r.costo, M, y);
-  y += 11; hline(); y += 3;
-
-  box('Traslado desde', r.desde, M, y);
-  box('Hasta', r.hasta, M + 65, y);
-  y += 11; hline(); y += 3;
-
-  box('H. Inicio', r.hinicio, M, y);
-  box('Tdo. Espera', r.espera, M + 38, y);
-  box('Fin servicio', r.fin, M + 78, y);
-  y += 11; hline(); y += 3;
-
-  if (r.detalle) {
-    doc.setFontSize(7); doc.setTextColor(110, 110, 110); doc.setFont('helvetica', 'normal');
-    doc.text('Detalle del servicio', M, y); y += 4;
-    doc.setFontSize(8); doc.setTextColor(20, 20, 20);
-    const lines = doc.splitTextToSize(r.detalle, W - 2 * M);
-    doc.text(lines, M, y); y += lines.length * 4 + 5;
-    hline(); y += 3;
-  }
-
-  // Total
-  doc.setFillColor(230, 241, 251); doc.roundedRect(M, y, W - 2 * M, 15, 2, 2, 'F');
-  doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(24, 95, 165);
-  doc.text('TOTAL', M + 4, y + 6);
-  doc.setFontSize(14); doc.setFont('helvetica', 'bold');
-  doc.text(fmtCLP(r.total), W - M - 4, y + 10, { align: 'right' });
-  y += 20;
-
-  // Firma
-  doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.3);
-  doc.line(M, y + 8, M + 55, y + 8);
-  doc.setFontSize(7); doc.setTextColor(150, 150, 150); doc.setFont('helvetica', 'normal');
-  doc.text('Firma', M, y + 12);
-  doc.text('Recibo #' + r.num + ' · ' + new Date().toLocaleDateString('es-CL'), W - M, y + 12, { align: 'right' });
-
-  doc.save('recibo-' + r.num + '-' + r.fecha + '.pdf');
-  toast('PDF descargado ✓');
-}
-
-// ── Resumen ────────────────────────────────────────────────
-function toggleChip(btn, val) {
-  document.querySelectorAll('#veh-filter .chip').forEach(c => c.classList.remove('on'));
-  btn.classList.add('on'); vehFilter = val;
-}
-
-async function calcSummary() {
-  const from = document.getElementById('sum-from').value;
-  const to   = document.getElementById('sum-to').value;
-  let receipts = await getReceipts();
-  if (from) receipts = receipts.filter(r => r.fecha >= from);
-  if (to)   receipts = receipts.filter(r => r.fecha <= to);
-  if (vehFilter !== 'todos') receipts = receipts.filter(r => r.vehiculo === vehFilter);
-  const total = receipts.reduce((a, r) => a + Number(r.total), 0);
-  const byVeh = {};
-  receipts.forEach(r => { const v = r.vehiculo || 'Sin tipo'; byVeh[v] = (byVeh[v] || 0) + Number(r.total); });
-  const cont = document.getElementById('summary-results');
-  if (!receipts.length) { cont.innerHTML = '<div class="card"><div class="empty" style="padding:14px">Sin resultados para ese período</div></div>'; return; }
-  cont.innerHTML = `
-    <div class="sg">
-      <div class="st"><div class="sl">Total recibos</div><div class="sv">${receipts.length}</div></div>
-      <div class="st"><div class="sl">Total ($)</div><div class="sv blue">${fmtCLP(total)}</div></div>
+    <div id="auth-login">
+      <div class="field"><label>Correo electrónico</label><input type="email" id="login-email" placeholder="tucorreo@ejemplo.com" autocomplete="email"></div>
+      <div class="field"><label>Contraseña</label><input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password"></div>
+      <button class="btn primary" id="login-btn" onclick="doLogin()"><i class="ti ti-login"></i> Entrar</button>
+      <button class="btn" style="margin-top:8px" onclick="doForgot()"><i class="ti ti-key"></i> Olvidé mi contraseña</button>
     </div>
-    <div class="card">
-      <div class="ct">Por tipo de vehículo</div>
-      ${Object.entries(byVeh).map(([v,t]) => `<div class="tr"><span style="font-size:12px">${v}</span><span style="font-size:13px;font-weight:600">${fmtCLP(t)}</span></div>`).join('<div class="hr"></div>')}
+    <div id="auth-register" style="display:none">
+      <div class="field"><label>Correo electrónico</label><input type="email" id="reg-email" placeholder="tucorreo@ejemplo.com" autocomplete="email"></div>
+      <div class="field"><label>Contraseña</label><input type="password" id="reg-pass" placeholder="Mínimo 6 caracteres" autocomplete="new-password"></div>
+      <div class="field"><label>Confirmar contraseña</label><input type="password" id="reg-pass2" placeholder="Repite la contraseña" autocomplete="new-password"></div>
+      <button class="btn primary" id="reg-btn" onclick="doRegister()"><i class="ti ti-user-plus"></i> Crear cuenta</button>
     </div>
-    <div class="card">
-      <div class="ct">Recibos del período</div>
-      ${receipts.slice().reverse().map(r => `
-        <div class="ri" onclick="openReceipt('${r.id}')">
-          <div class="rh">
-            <div>
-              <span class="rn">#${r.num}</span>
-              <span class="rd" style="margin-left:5px">${fmtDate(r.fecha)}</span>
-              <div class="rd">${r.solicita || ''}${r.empresa ? ' · ' + r.empresa : ''}</div>
-            </div>
-            <div style="font-size:13px;font-weight:600">${fmtCLP(r.total)}</div>
-          </div>
-        </div>
-      `).join('')}
-    </div>
-  `;
-}
+    <div class="auth-msg" id="auth-msg"></div>
+    <div class="auth-footer">Tus datos están protegidos y son privados.<br>Solo tú puedes ver tus recibos y rutas.</div>
+  </div>
+</div>
 
-// ── Exportar PDF resumen ───────────────────────────────────
-async function exportSummaryPDF() {
-  if (!jsPDF) { toast('jsPDF no disponible'); return; }
-  const from = document.getElementById('sum-from').value;
-  const to   = document.getElementById('sum-to').value;
-  let receipts = await getReceipts();
-  if (from) receipts = receipts.filter(r => r.fecha >= from);
-  if (to)   receipts = receipts.filter(r => r.fecha <= to);
-  if (vehFilter !== 'todos') receipts = receipts.filter(r => r.vehiculo === vehFilter);
-  if (!receipts.length) { toast('Sin datos para exportar'); return; }
-  const total = receipts.reduce((a, r) => a + Number(r.total), 0);
-
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  const W = 210, M = 14;
-
-  doc.setFillColor(24, 95, 165); doc.rect(0, 0, W, 22, 'F');
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor(255, 255, 255);
-  doc.text('RESUMEN DE SERVICIOS DE TRANSPORTE', W / 2, 13, { align: 'center' });
-  doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-  doc.text(`Período: ${from ? fmtDate(from) : 'inicio'} — ${to ? fmtDate(to) : 'hoy'}`, W / 2, 18.5, { align: 'center' });
-
-  let y = 30;
-  doc.setFillColor(230, 241, 251); doc.roundedRect(M, y, 87, 16, 2, 2, 'F');
-  doc.setFontSize(8); doc.setTextColor(24, 95, 165); doc.text('Total recibos', M + 4, y + 6);
-  doc.setFontSize(14); doc.setFont('helvetica', 'bold'); doc.text(String(receipts.length), M + 4, y + 13);
-
-  doc.setFillColor(225, 245, 238); doc.roundedRect(M + 92, y, 90, 16, 2, 2, 'F');
-  doc.setFontSize(8); doc.setTextColor(15, 110, 86); doc.text('Monto total', M + 96, y + 6);
-  doc.setFontSize(14); doc.setFont('helvetica', 'bold'); doc.setTextColor(15, 110, 86);
-  doc.text(fmtCLP(total), M + 96, y + 13);
-  y += 24;
-
-  // Cabecera tabla
-  const cols = ['#', 'Fecha', 'Solicita', 'Empresa', 'Vehículo', 'Desde', 'Hasta', 'Total'];
-  const xs   = [M, M+10, M+24, M+68, M+104, M+126, M+150, M+170];
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(80, 80, 80);
-  cols.forEach((h, i) => doc.text(h, xs[i], y));
-  y += 2; doc.setDrawColor(24, 95, 165); doc.setLineWidth(0.5); doc.line(M, y, W - M, y); y += 4;
-
-  // Filas
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setLineWidth(0.2);
-  receipts.forEach((r, idx) => {
-    if (idx % 2 === 0) { doc.setFillColor(248, 249, 250); doc.rect(M, y - 3, W - 2 * M, 7, 'F'); }
-    doc.setTextColor(30, 30, 30);
-    const vals = [
-      String(r.num), fmtDate(r.fecha),
-      (r.solicita || '').substring(0, 18),
-      (r.empresa  || '').substring(0, 18),
-      (r.vehiculo || ''),
-      (r.desde    || '').substring(0, 12),
-      (r.hasta    || '').substring(0, 12),
-      fmtCLP(r.total)
-    ];
-    vals.forEach((v, i) => doc.text(v, xs[i], y + 1));
-    y += 7;
-    if (y > 272) { doc.addPage(); y = 20; }
-  });
-
-  doc.setDrawColor(200, 200, 200); doc.setLineWidth(0.3); doc.line(M, y, W - M, y); y += 5;
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(24, 95, 165);
-  doc.text('TOTAL: ' + fmtCLP(total), W - M, y, { align: 'right' });
-  y += 10;
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(160, 160, 160);
-  doc.text('Generado el ' + new Date().toLocaleDateString('es-CL') + ' · TransferLog', W / 2, y, { align: 'center' });
-
-  doc.save('resumen-transferlog-' + new Date().toISOString().split('T')[0] + '.pdf');
-  toast('PDF resumen descargado ✓');
-}
-
-// ── Config Supabase ────────────────────────────────────────
-async function saveConfig() {
-  const url = document.getElementById('cfg-url').value.trim().replace(/\/$/, '');
-  const key = document.getElementById('cfg-key').value.trim();
-  if (!url || !key) { toast('Ingresa la URL y la Key de Supabase'); return; }
-  SB_URL = url; SB_KEY = key; useSupabase = true;
-  LS.cfg = { url, key };
-  try {
-    await sbFetch('receipts?limit=1');
-    document.getElementById('db-badge').textContent = '● Supabase';
-    document.getElementById('db-badge').className = 'db-badge ok';
-    toast('Conectado a Supabase ✓');
-  } catch(e) {
-    useSupabase = false; SB_URL = ''; SB_KEY = '';
-    document.getElementById('db-badge').textContent = '● Error';
-    document.getElementById('db-badge').className = 'db-badge err';
-    toast('Error de conexión: ' + e.message, 4000);
-  }
-}
-
-function copySql() {
-  const sql = document.getElementById('sql-block').textContent;
-  navigator.clipboard.writeText(sql)
-    .then(() => toast('SQL copiado ✓'))
-    .catch(() => toast('Selecciona el SQL manualmente'));
-}
-
-function clearLocal() {
-  if (!confirm('¿Eliminar todos los datos locales? No se puede deshacer.')) return;
-  localStorage.removeItem('tl_r'); localStorage.removeItem('tl_p');
-  toast('Datos locales eliminados'); renderReceipts();
-}
-
-// ── Cerrar modal al tocar fondo ────────────────────────────
-document.getElementById('detail-modal').addEventListener('click', function(e) {
-  if (e.target === this) closeModal();
-});
-
-// ── Init ───────────────────────────────────────────────────
-const cfg = LS.cfg;
-if (cfg.url && cfg.key) {
-  document.getElementById('cfg-url').value = cfg.url;
-  document.getElementById('cfg-key').value = cfg.key;
-  SB_URL = cfg.url; SB_KEY = cfg.key; useSupabase = true;
-  sbFetch('receipts?limit=1').then(() => {
-    document.getElementById('db-badge').textContent = '● Supabase';
-    document.getElementById('db-badge').className = 'db-badge ok';
-  }).catch(() => {
-    useSupabase = false;
-    document.getElementById('db-badge').textContent = '● Local';
-    document.getElementById('db-badge').className = 'db-badge off';
-  });
-}
-
-initForm(); renderReceipts();
-const today = new Date().toISOString().split('T')[0];
-document.getElementById('sum-from').value = today.substring(0, 8) + '01';
-document.getElementById('sum-to').value = today;
-</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
