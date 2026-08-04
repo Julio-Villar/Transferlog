@@ -23,16 +23,16 @@
       <h1>TransferLog</h1>
       <p>Gestión de traslados de personal</p>
     </div>
-    <div class="user-chip">
-      <span class="user-email" id="user-email"></span>
-      <button class="btn-logout" onclick="logout()"><i class="ti ti-logout"></i> Salir</button>
-    </div>
+    <span class="db-badge off" id="db-badge">● Local</span>
   </div>
 
   <div class="nav">
     <button class="nb active" onclick="nav('recibos')" id="nb-recibos"><i class="ti ti-file-text"></i>Recibos</button>
     <button class="nb" onclick="nav('nuevo')" id="nb-nuevo"><i class="ti ti-plus"></i>Nuevo</button>
-    <button class="nb" onclick="nav('rutas')" id="nb-rutas"><i class="ti ti-map-pin"></i>Rutas</button>
+    <button class="nb" onclick="nav('ordenes')" id="nb-ordenes" style="position:relative">
+      <i class="ti ti-send"></i>Órdenes
+      <span id="ordenes-badge" style="display:none;position:absolute;top:6px;right:8px;background:#A32D2D;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:20px;line-height:1.4"></span>
+    </button>
     <button class="nb" onclick="nav('resumen')" id="nb-resumen"><i class="ti ti-chart-bar"></i>Resumen</button>
     <button class="nb" onclick="nav('config')" id="nb-config"><i class="ti ti-settings"></i>Config</button>
   </div>
@@ -94,21 +94,9 @@
       <div class="sep"></div>
     </div>
 
-    <!-- RUTAS -->
-    <div class="sec" id="s-rutas">
-      <div class="card">
-        <div class="ct">Nueva ruta</div>
-        <div class="r2">
-          <div class="field"><label>Origen</label><input type="text" id="r-origen" placeholder="Ej: Puerto"></div>
-          <div class="field"><label>Destino</label><input type="text" id="r-destino" placeholder="Ej: Aeropuerto"></div>
-        </div>
-        <div class="field"><label>Valor en pesos ($)</label><input type="number" id="r-valor" placeholder="0" inputmode="numeric"></div>
-        <button class="btn primary" onclick="addRoute()"><i class="ti ti-plus"></i> Agregar ruta</button>
-      </div>
-      <div class="card">
-        <div class="ct">Rutas guardadas</div>
-        <div id="routes-list"></div>
-      </div>
+    <!-- ÓRDENES DE VIAJE -->
+    <div class="sec" id="s-ordenes">
+      <div id="ordenes-list"></div>
     </div>
 
     <!-- RESUMEN -->
@@ -195,34 +183,36 @@
   </div>
 </div>
 
-<!-- Auth screen -->
-<div id="auth-screen">
-  <div class="auth-box">
-    <div class="auth-logo">
-      <div class="hicon"><i class="ti ti-bus"></i></div>
-      <div>
-        <h2>TransferLog</h2>
-        <p>Gestión de traslados de personal</p>
-      </div>
+<!-- MODAL ORDEN DE VIAJE -->
+<div class="mb" id="orden-modal">
+  <div class="modal">
+    <div class="mt">
+      <span id="orden-modal-ttl">Orden de viaje</span>
+      <button class="xb" onclick="closeOrdenModal()" aria-label="Cerrar">×</button>
     </div>
-    <div class="auth-tabs">
-      <button class="auth-tab on" id="tab-login" onclick="showAuthTab('login')">Iniciar sesión</button>
-      <button class="auth-tab" id="tab-register" onclick="showAuthTab('register')">Registrarse</button>
+    <div id="orden-modal-body"></div>
+    <div class="sep"></div>
+    <div id="orden-modal-actions"></div>
+    <div class="sep"></div>
+  </div>
+</div>
+
+<!-- MODAL RECHAZO -->
+<div class="mb" id="rechazo-modal">
+  <div class="modal">
+    <div class="mt">
+      <span>Motivo de rechazo</span>
+      <button class="xb" onclick="closeRechazoModal()" aria-label="Cerrar">×</button>
     </div>
-    <div id="auth-login">
-      <div class="field"><label>Correo electrónico</label><input type="email" id="login-email" placeholder="tucorreo@ejemplo.com" autocomplete="email"></div>
-      <div class="field"><label>Contraseña</label><input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password"></div>
-      <button class="btn primary" id="login-btn" onclick="doLogin()"><i class="ti ti-login"></i> Entrar</button>
-      <button class="btn" style="margin-top:8px" onclick="doForgot()"><i class="ti ti-key"></i> Olvidé mi contraseña</button>
+    <div class="field">
+      <label>Explica brevemente por qué rechazas esta orden</label>
+      <textarea id="rechazo-motivo" placeholder="Ej: No hay disponibilidad en ese horario..."></textarea>
     </div>
-    <div id="auth-register" style="display:none">
-      <div class="field"><label>Correo electrónico</label><input type="email" id="reg-email" placeholder="tucorreo@ejemplo.com" autocomplete="email"></div>
-      <div class="field"><label>Contraseña</label><input type="password" id="reg-pass" placeholder="Mínimo 6 caracteres" autocomplete="new-password"></div>
-      <div class="field"><label>Confirmar contraseña</label><input type="password" id="reg-pass2" placeholder="Repite la contraseña" autocomplete="new-password"></div>
-      <button class="btn primary" id="reg-btn" onclick="doRegister()"><i class="ti ti-user-plus"></i> Crear cuenta</button>
+    <div class="r2">
+      <button class="btn" onclick="closeRechazoModal()">Cancelar</button>
+      <button class="btn danger" id="rechazo-btn" onclick="confirmarRechazo()"><i class="ti ti-x"></i> Confirmar rechazo</button>
     </div>
-    <div class="auth-msg" id="auth-msg"></div>
-    <div class="auth-footer">Tus datos están protegidos y son privados.<br>Solo tú puedes ver tus recibos y rutas.</div>
+    <div class="sep"></div>
   </div>
 </div>
 
