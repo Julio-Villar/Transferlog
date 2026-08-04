@@ -366,6 +366,7 @@ async function openOrden(id){
     ${o.vehiculo?`<span class="tag ${o.vehiculo}" style="margin-bottom:10px;display:inline-flex">${o.vehiculo}</span>`:''}
     <table style="width:100%;border-collapse:collapse">
       ${row('Chofer',o.chofer)}${row('Área',o.area)}
+      ${row('Solicita',o.solicita)}
       ${row('Empresa',o.empresa)}${row('Centro costo',o.costo)}
       ${row('Desde',o.desde)}${row('Hasta',o.hasta)}
       ${row('H. Inicio',o.hinicio)}
@@ -491,7 +492,7 @@ async function ejecutarCompletar(){
       fecha:              o.fecha,
       chofer:             o.chofer    || '',
       area:               o.area      || '',
-      solicita:           o.empresa   || '',
+      solicita:           o.solicita  || o.empresa || '',
       empresa:            o.empresa   || '',
       costo:              o.costo     || '',
       desde:              o.desde     || '',
