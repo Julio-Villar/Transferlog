@@ -475,16 +475,7 @@ async function ejecutarCompletar(){
   btn.innerHTML = '<span class="spin"></span> Creando recibo...';
 
   try{
-    // 1. Marcar orden como completada en Supabase
-    await sbFetch('ordenes?id=eq.'+_curOrdenId, {
-      method:'PATCH',
-      body:JSON.stringify({
-        estado:'completada',
-        completada_at: new Date().toISOString()
-      })
-    });
-
-    // 2. Crear recibo automáticamente con los datos de la orden
+    // 1. Crear recibo con los datos de la orden
     const count = await countReceipts();
     const recibo = await addReceiptDB({
       num:                count + 1,
@@ -502,15 +493,16 @@ async function ejecutarCompletar(){
       fin:                '',
       detalle:            o.detalle   || '',
       paradas_adicionales: 0,
-      total:              Number(o.total || 0),
-      orden_id:           o.id
+      total:              Number(o.total || 0)
     });
+
+    // 2. Eliminar la orden (ya no la necesitamos, el recibo es el registro oficial)
+    await sbFetch('ordenes?id=eq.'+_curOrdenId, { method:'DELETE' });
 
     closeCompletarModal();
     closeOrdenModal();
     toast('Recibo #'+recibo.num+' creado ✓', 3500);
     renderOrdenes();
-    // Navegar a recibos después de un breve instante
     setTimeout(()=>nav('recibos'), 700);
   }catch(e){
     toast('Error al crear recibo: '+e.message, 4000);
