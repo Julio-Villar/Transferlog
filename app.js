@@ -303,9 +303,10 @@ async function addRoute(){
 
 // ── 8. Órdenes de viaje ───────────────────────────────────
 const ESTADO_STYLE = {
-  pendiente: { bg:'#FEF3CD', color:'#7C4E00', label:'Pendiente', icon:'ti-clock' },
-  aceptada:  { bg:'#E1F5EE', color:'#085041', label:'Aceptada',  icon:'ti-check' },
-  rechazada: { bg:'#FCEBEB', color:'#A32D2D', label:'Rechazada', icon:'ti-x'     }
+  pendiente:  { bg:'#FEF3CD', color:'#7C4E00', label:'Pendiente',  icon:'ti-clock'       },
+  aceptada:   { bg:'#E1F5EE', color:'#085041', label:'Aceptada',   icon:'ti-check'       },
+  rechazada:  { bg:'#FCEBEB', color:'#A32D2D', label:'Rechazada',  icon:'ti-x'           },
+  completada: { bg:'#185FA5', color:'#ffffff', label:'Completada', icon:'ti-circle-check' }
 };
 
 async function renderOrdenes(){
@@ -384,6 +385,13 @@ async function openOrden(id){
       </div>
       <div class="sep"></div>
       <button class="btn" onclick="closeOrdenModal()">Cerrar</button>`;
+  } else if(o.estado==='aceptada'){
+    actions.innerHTML=`
+      <button class="btn primary" style="width:100%;background:#0F6E56;border-color:#0F6E56;justify-content:center" onclick="completarOrden()">
+        <i class="ti ti-circle-check"></i> Viaje realizado — Convertir en recibo
+      </button>
+      <div class="sep"></div>
+      <button class="btn" onclick="closeOrdenModal()">Cerrar</button>`;
   } else {
     actions.innerHTML=`<button class="btn" style="width:100%" onclick="closeOrdenModal()">Cerrar</button>`;
   }
@@ -424,6 +432,54 @@ async function confirmarRechazo(){
     toast('Orden rechazada'); closeRechazoModal(); closeOrdenModal(); renderOrdenes();
   }catch(e){ toast('Error: '+e.message); }
   btn.disabled=false; btn.innerHTML='<i class="ti ti-x"></i> Confirmar rechazo';
+}
+
+async function completarOrden(){
+  if(!_curOrdenId) return;
+  if(!confirm('¿Confirmar que el viaje fue realizado? Se creará un recibo automáticamente.')) return;
+
+  // Buscar la orden
+  const ordenes = await getOrdenes();
+  const o = ordenes.find(x=>x.id===_curOrdenId); if(!o) return;
+
+  const btn = document.querySelector('#orden-modal-actions .btn.primary');
+  if(btn){ btn.disabled=true; btn.innerHTML='<span class="spin"></span> Creando recibo...'; }
+
+  try{
+    // 1. Marcar orden como completada
+    await sbFetch('ordenes?id=eq.'+_curOrdenId, {
+      method:'PATCH',
+      body:JSON.stringify({ estado:'completada', completada_at:new Date().toISOString() })
+    });
+
+    // 2. Crear recibo con los datos de la orden
+    const count = await countReceipts();
+    const recibo = await addReceiptDB({
+      num:      count + 1,
+      vehiculo: o.vehiculo  || '',
+      fecha:    o.fecha,
+      chofer:   o.chofer    || '',
+      area:     o.area      || '',
+      solicita: '',               // no aplica en órdenes
+      empresa:  o.empresa   || '',
+      costo:    o.costo     || '',
+      desde:    o.desde     || '',
+      hasta:    o.hasta     || '',
+      hinicio:  o.hinicio   || '',
+      espera:   '',
+      fin:      '',
+      detalle:  o.detalle   || '',
+      paradas_adicionales: 0,
+      total:    Number(o.total || 0),
+      orden_id: o.id        // referencia a la orden origen
+    });
+
+    toast('Viaje completado — recibo #'+recibo.num+' creado ✓', 3500);
+    closeOrdenModal();
+    renderOrdenes();
+    // Ir directo a recibos para que el usuario vea el recibo nuevo
+    setTimeout(()=>nav('recibos'), 600);
+  }catch(e){ toast('Error: '+e.message); }
 }
 
 // Badge de pendientes al iniciar
