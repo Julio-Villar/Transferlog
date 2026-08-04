@@ -216,6 +216,29 @@
   </div>
 </div>
 
+<!-- MODAL CONFIRMAR VIAJE COMPLETADO -->
+<div class="mb" id="completar-modal">
+  <div class="modal">
+    <div class="mt">
+      <span>Confirmar viaje realizado</span>
+      <button class="xb" onclick="closeCompletarModal()" aria-label="Cerrar">×</button>
+    </div>
+    <div style="text-align:center;padding:10px 0 18px">
+      <div style="font-size:40px;margin-bottom:10px">✅</div>
+      <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:6px">¿El viaje fue realizado?</div>
+      <div style="font-size:13px;color:var(--text2)">Se creará un recibo automáticamente con los datos de esta orden.</div>
+    </div>
+    <div id="completar-resumen" style="background:var(--bg);border-radius:var(--rad-sm);padding:12px;margin-bottom:16px;font-size:12px;color:var(--text2);line-height:1.8"></div>
+    <div class="r2">
+      <button class="btn" onclick="closeCompletarModal()">Cancelar</button>
+      <button class="btn primary" id="completar-btn" onclick="ejecutarCompletar()" style="background:#0F6E56;border-color:#0F6E56">
+        <i class="ti ti-circle-check"></i> Sí, crear recibo
+      </button>
+    </div>
+    <div class="sep"></div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="app.js"></script>
 </body>
