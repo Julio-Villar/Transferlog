@@ -32,6 +32,7 @@ let selVehicle   = '';
 let curId        = null;
 let _curReceipt  = null;
 let _curOrdenId  = null;
+let _curOrden    = null;   // objeto completo de la orden abierta
 let vehFilter    = 'todos';
 
 const LS = {
@@ -351,6 +352,7 @@ async function openOrden(id){
   const ordenes=await getOrdenes();
   const o=ordenes.find(x=>x.id===id); if(!o) return;
   _curOrdenId=id;
+  _curOrden=o;   // guardar objeto completo
   const es=ESTADO_STYLE[o.estado]||ESTADO_STYLE.pendiente;
   document.getElementById('orden-modal-ttl').textContent='Orden de viaje';
   const row=(l,v)=>v?`<tr><td style="color:var(--text2);padding:3px 0;font-size:12px;width:46%">${l}</td><td style="font-size:12px;padding:3px 0">${escapeHTML(String(v))}</td></tr>`:'';
@@ -401,6 +403,7 @@ async function openOrden(id){
 function closeOrdenModal(){
   document.getElementById('orden-modal').classList.remove('open');
   _curOrdenId=null;
+  _curOrden=null;
 }
 
 async function aceptarOrden(){
@@ -435,51 +438,84 @@ async function confirmarRechazo(){
 }
 
 async function completarOrden(){
-  if(!_curOrdenId) return;
-  if(!confirm('¿Confirmar que el viaje fue realizado? Se creará un recibo automáticamente.')) return;
+  if(!_curOrden) return;
+  const o = _curOrden;
 
-  // Buscar la orden
-  const ordenes = await getOrdenes();
-  const o = ordenes.find(x=>x.id===_curOrdenId); if(!o) return;
+  // Mostrar resumen de la orden en el modal de confirmación
+  const lines = [
+    o.fecha     ? `📅 Fecha: ${fmtDate(o.fecha)}`         : '',
+    o.vehiculo  ? `🚗 Vehículo: ${o.vehiculo}`             : '',
+    o.chofer    ? `👤 Chofer: ${o.chofer}`                 : '',
+    o.desde&&o.hasta ? `📍 Ruta: ${o.desde} → ${o.hasta}` : '',
+    o.empresa   ? `🏢 Empresa: ${o.empresa}`               : '',
+    o.total     ? `💰 Total: ${fmtCLP(o.total)}`           : '',
+  ].filter(Boolean);
 
-  const btn = document.querySelector('#orden-modal-actions .btn.primary');
-  if(btn){ btn.disabled=true; btn.innerHTML='<span class="spin"></span> Creando recibo...'; }
+  document.getElementById('completar-resumen').innerHTML =
+    lines.map(l=>`<div>${escapeHTML(l)}</div>`).join('');
+
+  // Resetear botón por si venía de un intento anterior
+  const btn = document.getElementById('completar-btn');
+  btn.disabled = false;
+  btn.innerHTML = '<i class="ti ti-circle-check"></i> Sí, crear recibo';
+
+  document.getElementById('completar-modal').classList.add('open');
+}
+
+function closeCompletarModal(){
+  document.getElementById('completar-modal').classList.remove('open');
+}
+
+async function ejecutarCompletar(){
+  if(!_curOrdenId || !_curOrden) return;
+  const o = _curOrden;
+  const btn = document.getElementById('completar-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> Creando recibo...';
 
   try{
-    // 1. Marcar orden como completada
+    // 1. Marcar orden como completada en Supabase
     await sbFetch('ordenes?id=eq.'+_curOrdenId, {
       method:'PATCH',
-      body:JSON.stringify({ estado:'completada', completada_at:new Date().toISOString() })
+      body:JSON.stringify({
+        estado:'completada',
+        completada_at: new Date().toISOString()
+      })
     });
 
-    // 2. Crear recibo con los datos de la orden
+    // 2. Crear recibo automáticamente con los datos de la orden
     const count = await countReceipts();
     const recibo = await addReceiptDB({
-      num:      count + 1,
-      vehiculo: o.vehiculo  || '',
-      fecha:    o.fecha,
-      chofer:   o.chofer    || '',
-      area:     o.area      || '',
-      solicita: '',               // no aplica en órdenes
-      empresa:  o.empresa   || '',
-      costo:    o.costo     || '',
-      desde:    o.desde     || '',
-      hasta:    o.hasta     || '',
-      hinicio:  o.hinicio   || '',
-      espera:   '',
-      fin:      '',
-      detalle:  o.detalle   || '',
+      num:                count + 1,
+      vehiculo:           o.vehiculo  || '',
+      fecha:              o.fecha,
+      chofer:             o.chofer    || '',
+      area:               o.area      || '',
+      solicita:           o.empresa   || '',
+      empresa:            o.empresa   || '',
+      costo:              o.costo     || '',
+      desde:              o.desde     || '',
+      hasta:              o.hasta     || '',
+      hinicio:            o.hinicio   || '',
+      espera:             '',
+      fin:                '',
+      detalle:            o.detalle   || '',
       paradas_adicionales: 0,
-      total:    Number(o.total || 0),
-      orden_id: o.id        // referencia a la orden origen
+      total:              Number(o.total || 0),
+      orden_id:           o.id
     });
 
-    toast('Viaje completado — recibo #'+recibo.num+' creado ✓', 3500);
+    closeCompletarModal();
     closeOrdenModal();
+    toast('Recibo #'+recibo.num+' creado ✓', 3500);
     renderOrdenes();
-    // Ir directo a recibos para que el usuario vea el recibo nuevo
-    setTimeout(()=>nav('recibos'), 600);
-  }catch(e){ toast('Error: '+e.message); }
+    // Navegar a recibos después de un breve instante
+    setTimeout(()=>nav('recibos'), 700);
+  }catch(e){
+    toast('Error al crear recibo: '+e.message, 4000);
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-circle-check"></i> Sí, crear recibo';
+  }
 }
 
 // Badge de pendientes al iniciar
@@ -704,7 +740,7 @@ function clearLocal(){
 }
 
 // ── Cerrar modales al tocar fondo ─────────────────────────
-['detail-modal','orden-modal','rechazo-modal'].forEach(id=>{
+['detail-modal','orden-modal','rechazo-modal','completar-modal'].forEach(id=>{
   const el=document.getElementById(id);
   if(el) el.addEventListener('click',function(e){if(e.target===this) this.classList.remove('open');});
 });
