@@ -34,7 +34,6 @@
       <span id="ordenes-badge" style="display:none;position:absolute;top:6px;right:8px;background:#A32D2D;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:20px;line-height:1.4"></span>
     </button>
     <button class="nb" onclick="nav('resumen')" id="nb-resumen"><i class="ti ti-chart-bar"></i>Resumen</button>
-    <button class="nb" onclick="nav('config')" id="nb-config"><i class="ti ti-settings"></i>Config</button>
   </div>
 
   <div class="content">
@@ -120,50 +119,6 @@
         </div>
       </div>
       <div id="summary-results"></div>
-    </div>
-
-    <!-- CONFIG -->
-    <div class="sec" id="s-config">
-      <div class="card">
-        <div class="ct">Valores de cobro adicional</div>
-        <div class="field">
-          <label>Valor por parada adicional ($)</label>
-          <input type="number" id="cfg-stop-value" placeholder="0" inputmode="numeric">
-          <div style="font-size:11px;color:var(--text2);margin-top:3px">Se multiplica por la cantidad de paradas adicionales.</div>
-        </div>
-        <div class="field">
-          <label>Valor por tiempo de espera ($)</label>
-          <input type="number" id="cfg-wait-value" placeholder="0" inputmode="numeric">
-          <div style="font-size:11px;color:var(--text2);margin-top:3px">Se cobra por cada 30 minutos de espera completados. Ej: 45 min = 1 cobro, 90 min = 3 cobros.</div>
-        </div>
-        <button class="btn primary" onclick="saveExtraStopValue()"><i class="ti ti-device-floppy"></i> Guardar valores</button>
-      </div>
-      <div class="card">
-        <div class="ct">Registrar datos frecuentes</div>
-        <div class="field">
-          <label>Tipo de dato</label>
-          <select id="cfg-catalog-type">
-            <option value="choferes">Chofer</option>
-            <option value="solicitantes">Quien solicita</option>
-            <option value="areas">Área</option>
-            <option value="empresas">Empresa</option>
-            <option value="costos">Centro de costo</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Nombre o código</label>
-          <input type="text" id="cfg-catalog-value" placeholder="Escribe el dato a guardar">
-        </div>
-        <button class="btn primary" onclick="addCatalogItem()"><i class="ti ti-plus"></i> Agregar dato</button>
-      </div>
-      <div class="card">
-        <div class="ct">Datos guardados</div>
-        <div id="catalogs-list"></div>
-      </div>
-      <div class="card">
-        <div class="ct">Datos locales</div>
-        <button class="btn danger" onclick="clearLocal()"><i class="ti ti-trash"></i> Limpiar datos locales</button>
-      </div>
     </div>
 
   </div>
