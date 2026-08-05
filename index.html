@@ -80,7 +80,7 @@
         </div>
         <div class="r3">
           <div class="field"><label>H. Inicio</label><input type="time" id="f-hinicio"></div>
-          <div class="field"><label>Tdo. Espera</label><input type="text" id="f-espera" placeholder="min"></div>
+          <div class="field"><label>Tdo. Espera</label><input type="text" id="f-espera" placeholder="min" inputmode="numeric" oninput="updateReceiptTotal()"></div>
           <div class="field"><label>Fin servicio</label><input type="time" id="f-fin"></div>
         </div>
         <div class="field"><label>Paradas adicionales</label><input type="number" id="f-paradas" min="0" step="1" value="0" inputmode="numeric" oninput="updateReceiptTotal()"></div>
@@ -125,13 +125,18 @@
     <!-- CONFIG -->
     <div class="sec" id="s-config">
       <div class="card">
-        <div class="ct">Valor por parada adicional</div>
+        <div class="ct">Valores de cobro adicional</div>
         <div class="field">
-          <label>Monto en pesos ($)</label>
+          <label>Valor por parada adicional ($)</label>
           <input type="number" id="cfg-stop-value" placeholder="0" inputmode="numeric">
+          <div style="font-size:11px;color:var(--text2);margin-top:3px">Se multiplica por la cantidad de paradas adicionales.</div>
         </div>
-        <button class="btn primary" onclick="saveExtraStopValue()"><i class="ti ti-device-floppy"></i> Guardar valor</button>
-        <p class="cfg-note">Este valor se multiplica por las paradas adicionales del recibo y se suma al total del viaje.</p>
+        <div class="field">
+          <label>Valor por tiempo de espera ($)</label>
+          <input type="number" id="cfg-wait-value" placeholder="0" inputmode="numeric">
+          <div style="font-size:11px;color:var(--text2);margin-top:3px">Se cobra por cada 30 minutos de espera completados. Ej: 45 min = 1 cobro, 90 min = 3 cobros.</div>
+        </div>
+        <button class="btn primary" onclick="saveExtraStopValue()"><i class="ti ti-device-floppy"></i> Guardar valores</button>
       </div>
       <div class="card">
         <div class="ct">Registrar datos frecuentes</div>
