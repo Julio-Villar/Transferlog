@@ -132,7 +132,6 @@ function nav(s){
   if(s==='nuevo')    { initForm(); renderRouteSelect(); }
   if(s==='ordenes')  renderOrdenes();
   if(s==='resumen')  {}
-  if(s==='config')   renderConfig();
 }
 
 // ── 6. Recibos ────────────────────────────────────────────
@@ -187,8 +186,47 @@ function applyRoute(){
   updateReceiptTotal();
 }
 
-function getExtraStopValue(){ return Number(LS.settings.extraStopValue||0); }
-function getWaitValue(){ return Number(LS.settings.waitValue||0); }
+// ── Settings desde Supabase (con fallback a localStorage) ──
+let _settingsCache = null;
+
+async function loadSettings() {
+  if (!useSupabase) {
+    _settingsCache = LS.settings; return;
+  }
+  try {
+    const rows = await sbFetch('settings?select=key,value');
+    _settingsCache = {};
+    rows.forEach(r => _settingsCache[r.key] = r.value);
+  } catch(e) {
+    _settingsCache = LS.settings;
+  }
+}
+
+function getExtraStopValue() {
+  return Number((_settingsCache||LS.settings).extraStopValue || 0);
+}
+function getWaitValue() {
+  return Number((_settingsCache||LS.settings).waitValue || 0);
+}
+
+// ── Catálogos desde Supabase (con fallback a localStorage) ─
+let _catalogsCache = null;
+
+async function loadCatalogs() {
+  if (!useSupabase) {
+    _catalogsCache = LS.catalogs; return;
+  }
+  try {
+    const rows = await sbFetch('catalogs?order=tipo.asc,valor.asc');
+    const base  = { choferes:[], solicitantes:[], areas:[], empresas:[], costos:[] };
+    rows.forEach(r => {
+      if (base[r.tipo]) base[r.tipo].push(r.valor);
+    });
+    _catalogsCache = base;
+  } catch(e) {
+    _catalogsCache = LS.catalogs;
+  }
+}
 
 // Calcula cuántas veces se cobra la espera: floor(minutos / 30)
 function calcWaitUnits(minutos){ return Math.floor(Math.max(0, Number(minutos||0)) / 30); }
@@ -689,25 +727,18 @@ async function exportSummaryPDF(){
 }
 
 // ── 11. Configuración ─────────────────────────────────────
-function renderConfig(){
-  document.getElementById('cfg-stop-value').value = getExtraStopValue() || '';
-  document.getElementById('cfg-wait-value').value = getWaitValue()      || '';
-  renderCatalogControls();
-  renderCatalogs();
-}
+// Los valores de cobro y catálogos ahora se gestionan desde
+// el panel de administración. La app los carga al iniciar.
 
-function saveExtraStopValue(){
-  LS.settings = {
-    ...LS.settings,
-    extraStopValue: Number(document.getElementById('cfg-stop-value').value || 0),
-    waitValue:      Number(document.getElementById('cfg-wait-value').value  || 0)
-  };
-  updateReceiptTotal();
-  toast('Valores guardados ✓');
+function clearLocal(){
+  if(!confirm('¿Eliminar todos los datos locales?')) return;
+  localStorage.removeItem('tl_r');localStorage.removeItem('tl_p');
+  localStorage.removeItem('tl_catalogs');localStorage.removeItem('tl_settings');
+  toast('Datos locales eliminados'); renderReceipts();
 }
 
 function renderCatalogControls(){
-  const catalogs=LS.catalogs;
+  const catalogs = _catalogsCache || LS.catalogs;
   const selectMap={
     choferes:{id:'f-chofer',placeholder:'Seleccionar chofer'},
     areas:{id:'f-area',placeholder:'Seleccionar área'},
@@ -724,47 +755,7 @@ function renderCatalogControls(){
   });
 }
 
-function addCatalogItem(){
-  const type=document.getElementById('cfg-catalog-type').value;
-  const input=document.getElementById('cfg-catalog-value');
-  const value=input.value.trim();
-  if(!value){toast('Escribe un dato para guardar');return;}
-  const catalogs=LS.catalogs;
-  const exists=(catalogs[type]||[]).some(x=>x.toLowerCase()===value.toLowerCase());
-  if(!exists) catalogs[type]=[...(catalogs[type]||[]),value].sort((a,b)=>a.localeCompare(b,'es'));
-  LS.catalogs=catalogs; input.value='';
-  renderCatalogControls(); renderCatalogs();
-  toast(exists?'Ese dato ya estaba guardado':'Dato guardado ✓');
-}
-
-function deleteCatalogItem(type,value){
-  const catalogs=LS.catalogs;
-  catalogs[type]=(catalogs[type]||[]).filter(x=>x!==value);
-  LS.catalogs=catalogs; renderCatalogControls(); renderCatalogs();
-  toast('Dato eliminado');
-}
-
-function renderCatalogs(){
-  const cont=document.getElementById('catalogs-list');
-  const catalogs=LS.catalogs;
-  const html=Object.entries(CATALOG_LABELS).map(([key,label])=>{
-    const values=catalogs[key]||[];
-    const body=values.length
-      ?values.map(v=>`<div class="catalog-row"><span>${escapeHTML(v)}</span>
-          <button class="btn sm danger" onclick="deleteCatalogItem('${key}',decodeURIComponent('${encodeURIComponent(v)}'))"><i class="ti ti-trash"></i></button>
-        </div>`).join('')
-      :'<div class="empty compact">Sin datos guardados</div>';
-    return`<div class="catalog-group"><div class="catalog-title">${label}</div>${body}</div>`;
-  }).join('');
-  cont.innerHTML=html;
-}
-
-function clearLocal(){
-  if(!confirm('¿Eliminar todos los datos locales?')) return;
-  localStorage.removeItem('tl_r');localStorage.removeItem('tl_p');
-  localStorage.removeItem('tl_catalogs');localStorage.removeItem('tl_settings');
-  toast('Datos locales eliminados'); renderReceipts();
-}
+function renderCatalogs(){} // catálogos gestionados desde admin
 
 // ── Cerrar modales al tocar fondo ─────────────────────────
 ['detail-modal','orden-modal','rechazo-modal','completar-modal'].forEach(id=>{
@@ -778,10 +769,7 @@ document.getElementById('sum-from').value=today.substring(0,8)+'01';
 document.getElementById('sum-to').value=today;
 
 async function initApp(){
-  renderCatalogControls(); initForm();
   if(!_sb){ renderReceipts(); return; }
-  document.getElementById('db-badge').textContent='● Conectando';
-  document.getElementById('db-badge').className='db-badge off';
   try{
     const { data:{ session } } = await _sb.auth.getSession();
     if(session?.user){
@@ -789,7 +777,6 @@ async function initApp(){
       document.getElementById('db-badge').textContent='● Supabase';
       document.getElementById('db-badge').className='db-badge ok';
     } else {
-      // Sin sesión: modo local
       document.getElementById('db-badge').textContent='● Local';
       document.getElementById('db-badge').className='db-badge off';
     }
@@ -797,6 +784,12 @@ async function initApp(){
     document.getElementById('db-badge').textContent='● Local';
     document.getElementById('db-badge').className='db-badge off';
   }
+
+  // Cargar settings y catálogos desde Supabase (o localStorage como fallback)
+  await Promise.all([ loadSettings(), loadCatalogs() ]);
+
+  renderCatalogControls();
+  initForm();
   renderReceipts();
   checkOrdenesbadge();
 }
