@@ -150,6 +150,9 @@ function initForm(){
   ['f-desde','f-hasta','f-espera','f-detalle','f-total'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
   });
+  // Limpiar desglose de total
+  const desglose=document.getElementById('total-desglose');
+  if(desglose) desglose.innerHTML='';
   renderCatalogControls();
   ['f-chofer','f-area','f-solicita','f-empresa','f-costo'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
@@ -185,6 +188,10 @@ function applyRoute(){
 }
 
 function getExtraStopValue(){ return Number(LS.settings.extraStopValue||0); }
+function getWaitValue(){ return Number(LS.settings.waitValue||0); }
+
+// Calcula cuántas veces se cobra la espera: floor(minutos / 30)
+function calcWaitUnits(minutos){ return Math.floor(Math.max(0, Number(minutos||0)) / 30); }
 
 function syncBaseTotalFromManual(){
   const total=document.getElementById('f-total');
@@ -192,10 +199,27 @@ function syncBaseTotalFromManual(){
 }
 
 function updateReceiptTotal(){
-  const total=document.getElementById('f-total');
-  const base=Number(total.dataset.baseTotal||total.value||0);
-  const stops=Math.max(0,Number(document.getElementById('f-paradas').value||0));
-  total.value=base+(stops*getExtraStopValue());
+  const total  = document.getElementById('f-total');
+  const base   = Number(total.dataset.baseTotal||total.value||0);
+  const stops  = Math.max(0, Number(document.getElementById('f-paradas').value||0));
+  const espera = document.getElementById('f-espera').value;
+  const waitUnits = calcWaitUnits(espera);
+  const nuevoTotal = base + (stops * getExtraStopValue()) + (waitUnits * getWaitValue());
+  total.value = nuevoTotal;
+
+  // Mostrar desglose si hay cobros adicionales
+  let desglose = document.getElementById('total-desglose');
+  if(!desglose){
+    desglose = document.createElement('div');
+    desglose.id = 'total-desglose';
+    desglose.style.cssText = 'font-size:11px;color:var(--text2);margin-top:4px;line-height:1.7';
+    total.parentNode.appendChild(desglose);
+  }
+  const lines = [];
+  if(base)                              lines.push(`Base: ${fmtCLP(base)}`);
+  if(stops > 0 && getExtraStopValue()) lines.push(`Paradas (${stops} × ${fmtCLP(getExtraStopValue())}): ${fmtCLP(stops * getExtraStopValue())}`);
+  if(waitUnits > 0 && getWaitValue())  lines.push(`Espera (${waitUnits} × 30min × ${fmtCLP(getWaitValue())}): ${fmtCLP(waitUnits * getWaitValue())}`);
+  desglose.innerHTML = lines.length > 1 ? lines.join('<br>') : '';
 }
 
 async function saveReceipt(){
@@ -266,8 +290,9 @@ async function openReceipt(id){
       ${row('Chofer',r.chofer)}${row('Área',r.area)}${row('Solicita',r.solicita)}
       ${row('Empresa',r.empresa)}${row('Centro costo',r.costo)}
       ${row('Desde',r.desde)}${row('Hasta',r.hasta)}
-      ${row('H. Inicio',r.hinicio)}${row('Tdo. Espera',r.espera)}${row('Fin servicio',r.fin)}
+      ${row('H. Inicio',r.hinicio)}${row('Tdo. Espera',r.espera?r.espera+' min':null)}${row('Fin servicio',r.fin)}
       ${row('Paradas adicionales',r.paradas_adicionales)}
+      ${(Number(r.espera||0)>=30)?row('Cobro espera', calcWaitUnits(r.espera)+' × '+fmtCLP(getWaitValue())+' = '+fmtCLP(calcWaitUnits(r.espera)*getWaitValue())):''}
     </table>
     ${r.detalle?`<div style="margin-top:8px;font-size:12px;color:var(--text2);border-top:var(--border);padding-top:6px">${escapeHTML(r.detalle)}</div>`:''}
     <div style="margin-top:8px;border-top:var(--border);padding-top:8px;display:flex;justify-content:space-between;align-items:center">
@@ -588,8 +613,12 @@ function exportPDF(){
   box('Solicita',r.solicita,M,y);box('Empresa',r.empresa,M+65,y);y+=11;hl();y+=3;
   box('Centro de costo',r.costo,M,y);y+=11;hl();y+=3;
   box('Traslado desde',r.desde,M,y);box('Hasta',r.hasta,M+65,y);y+=11;hl();y+=3;
-  box('H. Inicio',r.hinicio,M,y);box('Tdo. Espera',r.espera,M+38,y);box('Fin servicio',r.fin,M+78,y);y+=11;hl();y+=3;
+  box('H. Inicio',r.hinicio,M,y);box('Tdo. Espera',r.espera?(r.espera+' min'):'',M+38,y);box('Fin servicio',r.fin,M+78,y);y+=11;hl();y+=3;
   if(Number(r.paradas_adicionales||0)>0){box('Paradas adicionales',r.paradas_adicionales,M,y);y+=11;hl();y+=3;}
+  if(Number(r.espera||0)>=30){
+    const wu=calcWaitUnits(r.espera);
+    box('Cobro espera ('+wu+' × 30min)',fmtCLP(wu*getWaitValue()),M,y);y+=11;hl();y+=3;
+  }
   if(r.detalle){
     doc.setFontSize(7);doc.setTextColor(110,110,110);doc.setFont('helvetica','normal');doc.text('Detalle del servicio',M,y);y+=4;
     doc.setFontSize(8);doc.setTextColor(20,20,20);
@@ -661,15 +690,20 @@ async function exportSummaryPDF(){
 
 // ── 11. Configuración ─────────────────────────────────────
 function renderConfig(){
-  document.getElementById('cfg-stop-value').value=getExtraStopValue()||'';
+  document.getElementById('cfg-stop-value').value = getExtraStopValue() || '';
+  document.getElementById('cfg-wait-value').value = getWaitValue()      || '';
   renderCatalogControls();
   renderCatalogs();
 }
 
 function saveExtraStopValue(){
-  LS.settings={...LS.settings,extraStopValue:Number(document.getElementById('cfg-stop-value').value||0)};
+  LS.settings = {
+    ...LS.settings,
+    extraStopValue: Number(document.getElementById('cfg-stop-value').value || 0),
+    waitValue:      Number(document.getElementById('cfg-wait-value').value  || 0)
+  };
   updateReceiptTotal();
-  toast('Valor por parada guardado ✓');
+  toast('Valores guardados ✓');
 }
 
 function renderCatalogControls(){
