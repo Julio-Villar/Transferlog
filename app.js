@@ -763,35 +763,126 @@ function renderCatalogs(){} // catálogos gestionados desde admin
   if(el) el.addEventListener('click',function(e){if(e.target===this) this.classList.remove('open');});
 });
 
-// ── 12. Init ──────────────────────────────────────────────
+// ── 12. Auth ──────────────────────────────────────────────
+function showAuthScreen(){ document.getElementById('auth-screen').style.display='flex'; }
+function hideAuthScreen(){ document.getElementById('auth-screen').style.display='none'; }
+
+function showAuthTab(tab){
+  const isLogin = tab==='login';
+  document.getElementById('tab-login').style.cssText    = isLogin ? 'flex:1;padding:8px;font-size:13px;font-weight:500;border:none;background:#185FA5;color:#fff;cursor:pointer;font-family:inherit' : 'flex:1;padding:8px;font-size:13px;font-weight:500;border:none;background:transparent;color:var(--text2);cursor:pointer;font-family:inherit';
+  document.getElementById('tab-register').style.cssText = isLogin ? 'flex:1;padding:8px;font-size:13px;font-weight:500;border:none;background:transparent;color:var(--text2);cursor:pointer;font-family:inherit' : 'flex:1;padding:8px;font-size:13px;font-weight:500;border:none;background:#185FA5;color:#fff;cursor:pointer;font-family:inherit';
+  document.getElementById('auth-login').style.display    = isLogin ? '' : 'none';
+  document.getElementById('auth-register').style.display = isLogin ? 'none' : '';
+  setAuthMsg('');
+}
+
+function setAuthMsg(msg, ok=false){
+  const el=document.getElementById('auth-msg');
+  el.textContent=msg;
+  el.style.color = ok ? '#0F6E56' : '#A32D2D';
+}
+
+function setBtnLoading(id, loading, label){
+  const b=document.getElementById(id); if(!b) return;
+  b.disabled=loading;
+  b.innerHTML=loading?'<span class="spin"></span> Cargando...':label;
+}
+
+async function doLogin(){
+  if(!_sb){ setAuthMsg('Supabase no disponible'); return; }
+  const email=document.getElementById('login-email').value.trim();
+  const pass=document.getElementById('login-pass').value;
+  if(!email||!pass){ setAuthMsg('Ingresa correo y contraseña'); return; }
+  setBtnLoading('login-btn',true,'<i class="ti ti-login"></i> Entrar');
+  const { error } = await _sb.auth.signInWithPassword({ email, password:pass });
+  setBtnLoading('login-btn',false,'<i class="ti ti-login"></i> Entrar');
+  if(error){ setAuthMsg(translateError(error.message)); return; }
+  // onAuthStateChange se encarga del resto
+}
+
+async function doRegister(){
+  if(!_sb){ setAuthMsg('Supabase no disponible'); return; }
+  const email=document.getElementById('reg-email').value.trim();
+  const pass=document.getElementById('reg-pass').value;
+  const pass2=document.getElementById('reg-pass2').value;
+  if(!email||!pass){ setAuthMsg('Completa todos los campos'); return; }
+  if(pass!==pass2){ setAuthMsg('Las contraseñas no coinciden'); return; }
+  if(pass.length<6){ setAuthMsg('La contraseña debe tener al menos 6 caracteres'); return; }
+  setBtnLoading('reg-btn',true,'<i class="ti ti-user-plus"></i> Crear cuenta');
+  const { error } = await _sb.auth.signUp({ email, password:pass });
+  setBtnLoading('reg-btn',false,'<i class="ti ti-user-plus"></i> Crear cuenta');
+  if(error){ setAuthMsg(translateError(error.message)); return; }
+  setAuthMsg('¡Cuenta creada! Revisa tu correo para confirmar.', true);
+}
+
+async function doForgot(){
+  if(!_sb) return;
+  const email=document.getElementById('login-email').value.trim();
+  if(!email){ setAuthMsg('Escribe tu correo primero'); return; }
+  const { error } = await _sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.href });
+  if(error){ setAuthMsg(translateError(error.message)); return; }
+  setAuthMsg('Correo de recuperación enviado ✓', true);
+}
+
+async function doLogout(){
+  if(!confirm('¿Cerrar sesión?')) return;
+  if(_sb) await _sb.auth.signOut();
+  currentUser=null; useSupabase=false;
+  document.getElementById('user-email').textContent='';
+  showAuthScreen();
+}
+
+function translateError(msg){
+  if(msg.includes('Invalid login credentials')) return 'Correo o contraseña incorrectos';
+  if(msg.includes('Email not confirmed'))       return 'Confirma tu correo antes de entrar';
+  if(msg.includes('User already registered'))   return 'Ese correo ya tiene cuenta';
+  if(msg.includes('Password should be'))        return 'La contraseña debe tener al menos 6 caracteres';
+  return msg;
+}
+
+// ── 13. Init ──────────────────────────────────────────────
 const today=new Date().toISOString().split('T')[0];
 document.getElementById('sum-from').value=today.substring(0,8)+'01';
 document.getElementById('sum-to').value=today;
 
-async function initApp(){
-  if(!_sb){ renderReceipts(); return; }
-  try{
-    const { data:{ session } } = await _sb.auth.getSession();
-    if(session?.user){
-      currentUser=session.user; useSupabase=true;
-      document.getElementById('db-badge').textContent='● Supabase';
-      document.getElementById('db-badge').className='db-badge ok';
-    } else {
-      document.getElementById('db-badge').textContent='● Local';
-      document.getElementById('db-badge').className='db-badge off';
-    }
-  }catch(e){
-    document.getElementById('db-badge').textContent='● Local';
-    document.getElementById('db-badge').className='db-badge off';
-  }
-
-  // Cargar settings y catálogos desde Supabase (o localStorage como fallback)
+async function onUserLoggedIn(user){
+  currentUser=user; useSupabase=true;
+  document.getElementById('user-email').textContent=user.email;
+  hideAuthScreen();
   await Promise.all([ loadSettings(), loadCatalogs() ]);
-
   renderCatalogControls();
   initForm();
   renderReceipts();
   checkOrdenesbadge();
+}
+
+async function initApp(){
+  if(!_sb){
+    // Sin Supabase: modo local directo
+    await Promise.all([ loadSettings(), loadCatalogs() ]);
+    renderCatalogControls(); initForm(); renderReceipts();
+    return;
+  }
+
+  // Mostrar auth mientras verifica sesión
+  showAuthScreen();
+
+  // Escuchar cambios de sesión (login, logout, refresh de token)
+  _sb.auth.onAuthStateChange(async (event, session) => {
+    if(session?.user){
+      await onUserLoggedIn(session.user);
+    } else {
+      currentUser=null; useSupabase=false;
+      showAuthScreen();
+    }
+  });
+
+  // Verificar sesión existente (cubre el caso de reabrir la app en iPhone)
+  const { data:{ session } } = await _sb.auth.getSession();
+  if(session?.user){
+    await onUserLoggedIn(session.user);
+  }
+  // Si no hay sesión, la pantalla de login ya está visible
 }
 
 initApp();
