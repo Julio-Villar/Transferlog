@@ -505,25 +505,49 @@ async function completarOrden(){
   if(!_curOrden) return;
   const o = _curOrden;
 
-  // Mostrar resumen de la orden en el modal de confirmación
+  // Resumen de la orden
   const lines = [
-    o.fecha     ? `📅 Fecha: ${fmtDate(o.fecha)}`         : '',
-    o.vehiculo  ? `🚗 Vehículo: ${o.vehiculo}`             : '',
-    o.chofer    ? `👤 Chofer: ${o.chofer}`                 : '',
-    o.desde&&o.hasta ? `📍 Ruta: ${o.desde} → ${o.hasta}` : '',
-    o.empresa   ? `🏢 Empresa: ${o.empresa}`               : '',
-    o.total     ? `💰 Total: ${fmtCLP(o.total)}`           : '',
+    o.fecha     ? `📅 Fecha: ${fmtDate(o.fecha)}`           : '',
+    o.vehiculo  ? `🚗 Vehículo: ${o.vehiculo}`               : '',
+    o.chofer    ? `👤 Chofer: ${o.chofer}`                   : '',
+    o.desde&&o.hasta ? `📍 Ruta: ${o.desde} → ${o.hasta}`   : '',
+    o.empresa   ? `🏢 Empresa: ${o.empresa}`                 : '',
   ].filter(Boolean);
-
   document.getElementById('completar-resumen').innerHTML =
     lines.map(l=>`<div>${escapeHTML(l)}</div>`).join('');
 
-  // Resetear botón por si venía de un intento anterior
+  // Pre-llenar campos con datos de la orden
+  document.getElementById('comp-hinicio').value = o.hinicio || '';
+  document.getElementById('comp-fin').value     = '';
+  document.getElementById('comp-espera').value  = '';
+  document.getElementById('comp-total').value   = o.total || '';
+
+  // Mostrar hint del total base
+  const hint = document.getElementById('comp-total-hint');
+  hint.textContent = o.total ? `(base: ${fmtCLP(o.total)})` : '';
+
+  // Resetear botón
   const btn = document.getElementById('completar-btn');
   btn.disabled = false;
-  btn.innerHTML = '<i class="ti ti-circle-check"></i> Sí, crear recibo';
+  btn.innerHTML = '<i class="ti ti-circle-check"></i> Crear recibo';
 
   document.getElementById('completar-modal').classList.add('open');
+}
+
+function recalcCompTotal(){
+  // Recalcula el total sumando el cobro de espera al base de la orden
+  const espera   = Number(document.getElementById('comp-espera').value || 0);
+  const base     = Number(_curOrden?.total || 0);
+  const waitUnits = calcWaitUnits(espera);
+  const waitCost  = waitUnits * getWaitValue();
+  const nuevo     = base + waitCost;
+  document.getElementById('comp-total').value = nuevo || base || '';
+  const hint = document.getElementById('comp-total-hint');
+  if(waitCost > 0){
+    hint.textContent = `(base ${fmtCLP(base)} + espera ${fmtCLP(waitCost)})`;
+  } else {
+    hint.textContent = base ? `(base: ${fmtCLP(base)})` : '';
+  }
 }
 
 function closeCompletarModal(){
@@ -533,12 +557,19 @@ function closeCompletarModal(){
 async function ejecutarCompletar(){
   if(!_curOrdenId || !_curOrden) return;
   const o = _curOrden;
+
+  // Leer campos corregidos del modal
+  const hinicio = document.getElementById('comp-hinicio').value;
+  const fin     = document.getElementById('comp-fin').value;
+  const espera  = document.getElementById('comp-espera').value;
+  const total   = Number(document.getElementById('comp-total').value || o.total || 0);
+
   const btn = document.getElementById('completar-btn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spin"></span> Creando recibo...';
 
   try{
-    // 1. Crear recibo con los datos de la orden
+    // 1. Crear recibo con datos de la orden + correcciones del usuario
     const count = await countReceipts();
     const recibo = await addReceiptDB({
       num:                count + 1,
@@ -551,15 +582,15 @@ async function ejecutarCompletar(){
       costo:              o.costo     || '',
       desde:              o.desde     || '',
       hasta:              o.hasta     || '',
-      hinicio:            o.hinicio   || '',
-      espera:             '',
-      fin:                '',
+      hinicio:            hinicio     || o.hinicio || '',
+      espera:             espera      || '',
+      fin:                fin         || '',
       detalle:            o.detalle   || '',
       paradas_adicionales: 0,
-      total:              Number(o.total || 0)
+      total
     });
 
-    // 2. Eliminar la orden (ya no la necesitamos, el recibo es el registro oficial)
+    // 2. Eliminar la orden
     await sbFetch('ordenes?id=eq.'+_curOrdenId, { method:'DELETE' });
 
     closeCompletarModal();
@@ -570,7 +601,7 @@ async function ejecutarCompletar(){
   }catch(e){
     toast('Error al crear recibo: '+e.message, 4000);
     btn.disabled = false;
-    btn.innerHTML = '<i class="ti ti-circle-check"></i> Sí, crear recibo';
+    btn.innerHTML = '<i class="ti ti-circle-check"></i> Crear recibo';
   }
 }
 
