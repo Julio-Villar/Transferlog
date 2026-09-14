@@ -208,6 +208,18 @@ function getExtraStopValue() {
 function getWaitValue() {
   return Number((_settingsCache||LS.settings).waitValue || 0);
 }
+function getNightValue(){ return Number((_settingsCache||LS.settings).nightValue||0); }
+function getNightFrom(){ return (_settingsCache||LS.settings).nightFrom||'22:00'; }
+function getNightTo(){   return (_settingsCache||LS.settings).nightTo  ||'06:00'; }
+
+// Devuelve true si la hora HH:MM cae en la franja nocturna
+function isNocturno(hora){
+  if(!hora||!getNightValue()) return false;
+  const toMins = h=>{ const[hh,mm]=(h||'00:00').split(':'); return Number(hh)*60+Number(mm); };
+  const t=toMins(hora), from=toMins(getNightFrom()), to=toMins(getNightTo());
+  if(from>to) return t>=from||t<to;   // cruza medianoche
+  return t>=from&&t<to;               // mismo día
+}
 
 // ── Catálogos desde Supabase (con fallback a localStorage) ─
 let _catalogsCache = null;
@@ -237,15 +249,17 @@ function syncBaseTotalFromManual(){
 }
 
 function updateReceiptTotal(){
-  const total  = document.getElementById('f-total');
-  const base   = Number(total.dataset.baseTotal||total.value||0);
-  const stops  = Math.max(0, Number(document.getElementById('f-paradas').value||0));
-  const espera = document.getElementById('f-espera').value;
-  const waitUnits = calcWaitUnits(espera);
-  const nuevoTotal = base + (stops * getExtraStopValue()) + (waitUnits * getWaitValue());
+  const total   = document.getElementById('f-total');
+  const base    = Number(total.dataset.baseTotal||total.value||0);
+  const stops   = Math.max(0, Number(document.getElementById('f-paradas').value||0));
+  const espera  = document.getElementById('f-espera').value;
+  const hinicio = document.getElementById('f-hinicio').value;
+  const waitUnits  = calcWaitUnits(espera);
+  const nightCost  = isNocturno(hinicio) ? getNightValue() : 0;
+  const nuevoTotal = base + (stops * getExtraStopValue()) + (waitUnits * getWaitValue()) + nightCost;
   total.value = nuevoTotal;
 
-  // Mostrar desglose si hay cobros adicionales
+  // Mostrar desglose
   let desglose = document.getElementById('total-desglose');
   if(!desglose){
     desglose = document.createElement('div');
@@ -255,9 +269,10 @@ function updateReceiptTotal(){
   }
   const lines = [];
   if(base)                              lines.push(`Base: ${fmtCLP(base)}`);
-  if(stops > 0 && getExtraStopValue()) lines.push(`Paradas (${stops} × ${fmtCLP(getExtraStopValue())}): ${fmtCLP(stops * getExtraStopValue())}`);
-  if(waitUnits > 0 && getWaitValue())  lines.push(`Espera (${waitUnits} × 30min × ${fmtCLP(getWaitValue())}): ${fmtCLP(waitUnits * getWaitValue())}`);
-  desglose.innerHTML = lines.length > 1 ? lines.join('<br>') : '';
+  if(stops>0 && getExtraStopValue())   lines.push(`Paradas (${stops} × ${fmtCLP(getExtraStopValue())}): ${fmtCLP(stops*getExtraStopValue())}`);
+  if(waitUnits>0 && getWaitValue())    lines.push(`Espera (${waitUnits} × 30min × ${fmtCLP(getWaitValue())}): ${fmtCLP(waitUnits*getWaitValue())}`);
+  if(nightCost)                        lines.push(`🌙 Nocturno (${hinicio}): ${fmtCLP(nightCost)}`);
+  desglose.innerHTML = lines.length>1 ? lines.join('<br>') : '';
 }
 
 async function saveReceipt(){
@@ -535,19 +550,21 @@ async function completarOrden(){
 }
 
 function recalcCompTotal(){
-  // Recalcula el total sumando el cobro de espera al base de la orden
-  const espera   = Number(document.getElementById('comp-espera').value || 0);
-  const base     = Number(_curOrden?.total || 0);
+  const espera    = Number(document.getElementById('comp-espera').value || 0);
+  const hinicio   = document.getElementById('comp-hinicio').value;
+  const base      = Number(_curOrden?.total || 0);
   const waitUnits = calcWaitUnits(espera);
   const waitCost  = waitUnits * getWaitValue();
-  const nuevo     = base + waitCost;
+  const nightCost = isNocturno(hinicio) ? getNightValue() : 0;
+  const nuevo     = base + waitCost + nightCost;
   document.getElementById('comp-total').value = nuevo || base || '';
   const hint = document.getElementById('comp-total-hint');
-  if(waitCost > 0){
-    hint.textContent = `(base ${fmtCLP(base)} + espera ${fmtCLP(waitCost)})`;
-  } else {
-    hint.textContent = base ? `(base: ${fmtCLP(base)})` : '';
-  }
+  const parts = [];
+  if(waitCost)  parts.push(`espera ${fmtCLP(waitCost)}`);
+  if(nightCost) parts.push(`🌙 nocturno ${fmtCLP(nightCost)}`);
+  hint.textContent = parts.length
+    ? `(base ${fmtCLP(base)} + ${parts.join(' + ')})`
+    : base ? `(base: ${fmtCLP(base)})` : '';
 }
 
 function closeCompletarModal(){
