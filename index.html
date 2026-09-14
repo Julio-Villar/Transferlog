@@ -108,7 +108,7 @@
           <div class="field"><label>Hasta</label><input type="text" id="f-hasta" placeholder="Destino"></div>
         </div>
         <div class="r3">
-          <div class="field"><label>H. Inicio</label><input type="time" id="f-hinicio"></div>
+          <div class="field"><label>H. Inicio</label><input type="time" id="f-hinicio" oninput="updateReceiptTotal()"></div>
           <div class="field"><label>Tdo. Espera</label><input type="text" id="f-espera" placeholder="min" inputmode="numeric" oninput="updateReceiptTotal()"></div>
           <div class="field"><label>Fin servicio</label><input type="time" id="f-fin"></div>
         </div>
@@ -225,7 +225,7 @@
       <div class="r3">
         <div class="field" style="margin-bottom:8px">
           <label>H. Inicio</label>
-          <input type="time" id="comp-hinicio">
+          <input type="time" id="comp-hinicio" oninput="recalcCompTotal()">
         </div>
         <div class="field" style="margin-bottom:8px">
           <label>Fin servicio</label>
