@@ -586,7 +586,21 @@ async function ejecutarCompletar(){
   btn.innerHTML = '<span class="spin"></span> Creando recibo...';
 
   try{
-    // 1. Crear recibo con datos de la orden + correcciones del usuario
+    // 1. Marcar orden como completada
+    const patchRes = await sbFetch('ordenes?id=eq.'+_curOrdenId, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        estado: 'completada',
+        completada_at: new Date().toISOString()
+      })
+    });
+    // Verificar que el PATCH realmente actualizó el registro
+    const verificar = await sbFetch('ordenes?id=eq.'+_curOrdenId+'&select=estado');
+    if (!verificar.length || verificar[0].estado !== 'completada') {
+      throw new Error('No se pudo actualizar el estado de la orden. Verifica los permisos en Supabase.');
+    }
+
+    // 2. Crear recibo con datos de la orden + correcciones del usuario
     const count = await countReceipts();
     const recibo = await addReceiptDB({
       num:                count + 1,
@@ -607,16 +621,13 @@ async function ejecutarCompletar(){
       total
     });
 
-    // 2. Eliminar la orden
-    await sbFetch('ordenes?id=eq.'+_curOrdenId, { method:'DELETE' });
-
     closeCompletarModal();
     closeOrdenModal();
     toast('Recibo #'+recibo.num+' creado ✓', 3500);
     renderOrdenes();
     setTimeout(()=>nav('recibos'), 700);
   }catch(e){
-    toast('Error al crear recibo: '+e.message, 4000);
+    toast('Error: '+e.message, 4000);
     btn.disabled = false;
     btn.innerHTML = '<i class="ti ti-circle-check"></i> Crear recibo';
   }
