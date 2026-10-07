@@ -743,42 +743,69 @@ async function exportSummaryPDF(){
   if(vehFilter!=='todos') receipts=receipts.filter(r=>r.vehiculo===vehFilter);
   if(!receipts.length){toast('Sin datos para exportar');return;}
   const total=receipts.reduce((a,r)=>a+Number(r.total||0),0);
-  const doc=new jsPDF({unit:'mm',format:'a4'});
-  const W=210,M=14;
+
+  // Landscape A4 — 297mm ancho, más espacio para Ruta
+  const doc=new jsPDF({unit:'mm',format:'a4',orientation:'landscape'});
+  const W=297,M=12;
+
+  // Encabezado
   doc.setFillColor(24,95,165);doc.rect(0,0,W,22,'F');
-  doc.setFont('helvetica','bold');doc.setFontSize(16);doc.setTextColor(255,255,255);
+  doc.setFont('helvetica','bold');doc.setFontSize(15);doc.setTextColor(255,255,255);
   doc.text('RESUMEN DE SERVICIOS DE TRANSPORTE',W/2,13,{align:'center'});
-  doc.setFontSize(9);doc.setFont('helvetica','normal');
-  doc.text(`Período: ${from?fmtDate(from):'inicio'} — ${to?fmtDate(to):'hoy'}`,W/2,18.5,{align:'center'});
+  doc.setFontSize(8);doc.setFont('helvetica','normal');
+  doc.text(`Período: ${from?fmtDate(from):'inicio'} — ${to?fmtDate(to):'hoy'} · Generado el ${new Date().toLocaleDateString('es-CL')}`,W/2,18.5,{align:'center'});
+
   let y=30;
-  doc.setFillColor(230,241,251);doc.roundedRect(M,y,87,16,2,2,'F');
+  // Stats
+  doc.setFillColor(230,241,251);doc.roundedRect(M,y,65,16,2,2,'F');
   doc.setFontSize(8);doc.setTextColor(24,95,165);doc.text('Total recibos',M+4,y+6);
-  doc.setFontSize(14);doc.setFont('helvetica','bold');doc.text(String(receipts.length),M+4,y+13);
-  doc.setFillColor(225,245,238);doc.roundedRect(M+92,y,90,16,2,2,'F');
-  doc.setFontSize(8);doc.setTextColor(15,110,86);doc.text('Monto total',M+96,y+6);
-  doc.setFontSize(14);doc.setFont('helvetica','bold');doc.setTextColor(15,110,86);doc.text(fmtCLP(total),M+96,y+13);
+  doc.setFontSize(13);doc.setFont('helvetica','bold');doc.text(String(receipts.length),M+4,y+13);
+  doc.setFillColor(225,245,238);doc.roundedRect(M+70,y,85,16,2,2,'F');
+  doc.setFontSize(8);doc.setTextColor(15,110,86);doc.text('Monto total',M+74,y+6);
+  doc.setFontSize(13);doc.setFont('helvetica','bold');doc.setTextColor(15,110,86);
+  doc.text(fmtCLP(total),M+74,y+13);
   y+=24;
-  // Columnas: # | Fecha | Detalle | Empresa | Vehículo | Desde | Hasta | Total
-  const cols=['#','Fecha','Detalle','Empresa','Vehículo','Desde','Hasta','Total'];
-  const xs=[M,M+10,M+26,M+82,M+118,M+138,M+158,M+176];
-  doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(80,80,80);
+
+  // Columnas — ancho total útil ~273mm (297 - 2×12)
+  // Fecha:18 | Ruta(desde→hasta):80 | Detalle:60 | Solicita:40 | C.Costo:20 | Valor:28
+  const cols=['Fecha','Ruta (Desde → Hasta)','Detalle','Solicita','C.Costo','Valor'];
+  const xs  =[M, M+20, M+102, M+164, M+207, M+227];
+
+  doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(60,60,60);
+  doc.setFillColor(225,232,242);doc.rect(M,y-4,W-2*M,8,'F');
   cols.forEach((h,i)=>doc.text(h,xs[i],y));
   y+=2;doc.setDrawColor(24,95,165);doc.setLineWidth(0.5);doc.line(M,y,W-M,y);y+=4;
-  doc.setFont('helvetica','normal');doc.setFontSize(7.5);
+
+  doc.setFont('helvetica','normal');doc.setFontSize(7);
   receipts.forEach((r,idx)=>{
-    const detalleRaw=(r.detalle||'').replace(/\n/g,' ').trim();
-    const detalle=detalleRaw.length>28?detalleRaw.substring(0,27)+'…':detalleRaw;
     if(idx%2===0){doc.setFillColor(248,249,250);doc.rect(M,y-3,W-2*M,7,'F');}
     doc.setTextColor(30,30,30);
-    [String(r.num||''),fmtDate(r.fecha),detalle,
-     (r.empresa||'').substring(0,16),(r.vehiculo||''),
-     (r.desde||'').substring(0,10),(r.hasta||'').substring(0,10),fmtCLP(r.total)]
-    .forEach((v,i)=>doc.text(v,xs[i],y+1));
-    y+=7;if(y>272){doc.addPage();y=20;}
+
+    // Ruta: desde → hasta — hasta 38 chars cada parte
+    const desde  = (r.desde||'').substring(0,36);
+    const hasta  = (r.hasta||'').substring(0,36);
+    const ruta   = hasta ? desde+' → '+hasta : desde;
+
+    const detalle  = (r.detalle||'').replace(/\n/g,' ').substring(0,32);
+    const solicita = (r.solicita||'').substring(0,22);
+    const costo    = (r.costo||'').substring(0,8); // Centro costo al mínimo
+
+    [
+      fmtDate(r.fecha),
+      ruta,
+      detalle,
+      solicita,
+      costo,
+      fmtCLP(r.total)
+    ].forEach((v,i)=>doc.text(v,xs[i],y+1));
+
+    y+=7;
+    if(y>190){doc.addPage();y=20;}
   });
+
   doc.setDrawColor(200,200,200);doc.setLineWidth(0.3);doc.line(M,y,W-M,y);y+=5;
   doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(24,95,165);
-  doc.text('TOTAL: '+fmtCLP(total),W-M,y,{align:'right'});y+=10;
+  doc.text('TOTAL: '+fmtCLP(total),W-M,y,{align:'right'});y+=8;
   doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(160,160,160);
   doc.text('Generado el '+new Date().toLocaleDateString('es-CL')+' · TransferLog',W/2,y,{align:'center'});
   doc.save('resumen-transferlog-'+new Date().toISOString().split('T')[0]+'.pdf');
