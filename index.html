@@ -70,6 +70,11 @@
 
     <!-- NUEVO RECIBO -->
     <div class="sec" id="s-nuevo">
+      <!-- Aviso de borrador restaurado -->
+      <div id="draft-banner" style="display:none;background:#FEF3CD;color:#7C4E00;border-radius:var(--rad-sm);padding:10px 12px;margin-bottom:10px;font-size:12px;align-items:center;justify-content:space-between;gap:10px">
+        <span><i class="ti ti-restore"></i> Recuperamos el recibo que estabas llenando.</span>
+        <button class="btn sm" onclick="discardDraft()" style="background:#fff;border-color:#e0c36a;color:#7C4E00;flex-shrink:0">Descartar</button>
+      </div>
       <div class="card">
         <div class="ct">Tipo de vehículo</div>
         <div class="vg">
@@ -336,6 +341,6 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="app.js?v=3.0"></script>
+<script src="app.js?v=3.1"></script>
 </body>
 </html>
