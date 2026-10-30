@@ -129,7 +129,7 @@ function nav(s){
   document.getElementById('s-'+s).classList.add('active');
   document.getElementById('nb-'+s).classList.add('active');
   if(s==='recibos')  renderReceipts();
-  if(s==='nuevo')    { initForm(); renderRouteSelect(); }
+  if(s==='nuevo')    { if(!_formReady){ initForm(); restoreDraft(); _formReady=true; } renderRouteSelect(); }
   if(s==='ordenes')  renderOrdenes();
   if(s==='resumen')  {}
 }
@@ -139,6 +139,7 @@ function selVeh(v){
   selVehicle=v;
   document.querySelectorAll('.vo').forEach(b=>b.classList.remove('sel'));
   document.getElementById('v-'+v).classList.add('sel');
+  saveDraft();
 }
 
 function initForm(){
@@ -153,7 +154,8 @@ function initForm(){
   const desglose=document.getElementById('total-desglose');
   if(desglose) desglose.innerHTML='';
   // Resetear cronómetro del formulario
-  cronoReset('form');
+  cronoReset('form', true);
+  const _bn=document.getElementById('draft-banner'); if(_bn) _bn.style.display='none';
   renderCatalogControls();
   ['f-chofer','f-area','f-solicita','f-empresa','f-costo'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
@@ -301,7 +303,7 @@ async function saveReceipt(){
       detalle:document.getElementById('f-detalle').value,
       paradas_adicionales:paradas, total:Number(total)
     });
-    toast('Recibo guardado ✓'); nav('recibos');
+    toast('Recibo guardado ✓'); clearDraft(); initForm(); nav('recibos');
   }catch(e){ toast('Error: '+e.message); }
   btn.innerHTML='<i class="ti ti-check"></i> Guardar recibo'; btn.disabled=false;
 }
@@ -547,7 +549,24 @@ async function completarOrden(){
   const btn = document.getElementById('completar-btn');
   btn.disabled = false;
   btn.innerHTML = '<i class="ti ti-circle-check"></i> Crear recibo';
-  cronoReset('modal');
+  // ¿Hay un borrador de ESTA orden (cronómetro o datos a medio ingresar)?
+  let saved=null;
+  try{ saved=JSON.parse(localStorage.getItem(compKey())||'null'); }catch(e){}
+  if(saved && saved.ordenId===o.id){
+    _restoring=true;
+    try{
+      document.getElementById('comp-hinicio').value = saved.hinicio ?? '';
+      document.getElementById('comp-fin').value     = saved.fin     ?? '';
+      document.getElementById('comp-espera').value  = saved.espera  ?? '';
+      document.getElementById('comp-total').value   = saved.total   ?? '';
+      Object.assign(_cr.modal,{ llegadaTs:saved.cr?.llegadaTs||null, inicioTs:saved.cr?.inicioTs||null, finTs:saved.cr?.finTs||null });
+      _renderCrono('modal');
+      if(_cr.modal.llegadaTs && !_cr.modal.finTs) wakeOn();
+    } finally { _restoring=false; }
+  } else {
+    cronoReset('modal', true);
+    clearCompDraft();
+  }
 
   document.getElementById('completar-modal').classList.add('open');
 }
@@ -624,6 +643,7 @@ async function ejecutarCompletar(){
       total
     });
 
+    clearCompDraft(); cronoReset('modal', true);
     closeCompletarModal();
     closeOrdenModal();
     toast('Recibo #'+recibo.num+' creado ✓', 3500);
@@ -878,142 +898,227 @@ function renderCatalogs(){} // catálogos gestionados desde admin
   if(el) el.addEventListener('click',function(e){if(e.target===this) this.classList.remove('open');});
 });
 
-// ── 12. Cronómetro de servicio ────────────────────────────
-// Estado del cronómetro — persiste aunque el usuario cambie de pestaña
-const _crono = {
-  llegadaTs:  null,   // timestamp llegada al sitio
-  inicioTs:   null,   // timestamp inicio del viaje
-  intervalo:  null,   // setInterval del contador
-  contexto:   null,   // 'form' | 'modal'
+// ── 12. Cronómetro de servicio + borrador automático ──────
+// Los cronómetros guardan marcas de tiempo ABSOLUTAS (hora real), no un contador
+// que "corre". Así siguen siendo correctos aunque la pantalla se apague, la app
+// pase a segundo plano o el navegador recargue la página.
+const _cr = {
+  form:  { llegadaTs:null, inicioTs:null, finTs:null, intervalo:null },
+  modal: { llegadaTs:null, inicioTs:null, finTs:null, intervalo:null }
 };
+let _restoring    = false;   // true mientras se restauran datos (evita re-guardar)
+let _formReady    = false;   // true cuando el formulario ya fue inicializado/restaurado
+let _loggedUserId = null;    // evita reinicializar al refrescar el token
+let _wakeLock     = null;
 
+const _pref = ctx => ctx==='modal' ? 'crono-m-' : 'crono-';
 function _pad(n){ return String(n).padStart(2,'0'); }
+function _horaHHMM(ts){ const d=new Date(ts); return _pad(d.getHours())+':'+_pad(d.getMinutes()); }
+function _diffMins(a,b){ return Math.floor((b-a)/60000); }
 
-function _horaHHMM(ts){
-  const d = new Date(ts);
-  return _pad(d.getHours())+':'+_pad(d.getMinutes());
+function _tickEspera(ctx){
+  const el=document.getElementById(_pref(ctx)+'contador'), c=_cr[ctx];
+  if(!el||!c.llegadaTs) return;
+  const segs=Math.max(0,Math.floor((Date.now()-c.llegadaTs)/1000));
+  el.textContent=_pad(Math.floor(segs/60))+':'+_pad(segs%60);
 }
 
-function _diffMins(a, b){
-  return Math.floor((b - a) / 60000);
+// Dibuja el paso correcto del cronómetro según las marcas de tiempo guardadas
+function _renderCrono(ctx){
+  const p=_pref(ctx), c=_cr[ctx];
+  const show=step=>['llegada','espera','viaje','ok'].forEach(st=>{
+    const el=document.getElementById(p+'step-'+st); if(el) el.style.display = st===step ? '' : 'none';
+  });
+  clearInterval(c.intervalo); c.intervalo=null;
+
+  if(!c.llegadaTs){
+    show('llegada');
+    const cnt=document.getElementById(p+'contador'); if(cnt) cnt.textContent='00:00';
+    return;
+  }
+  if(!c.inicioTs){
+    show('espera');
+    document.getElementById(p+'hora-llegada').textContent=_horaHHMM(c.llegadaTs);
+    _tickEspera(ctx);
+    c.intervalo=setInterval(()=>_tickEspera(ctx),1000);
+    return;
+  }
+  const espera=_diffMins(c.llegadaTs,c.inicioTs);
+  if(!c.finTs){
+    show('viaje');
+    document.getElementById(p+'hora-inicio').textContent=_horaHHMM(c.inicioTs);
+    document.getElementById(p+'espera-ok').textContent=espera;
+    return;
+  }
+  show('ok');
+  document.getElementById(p+'resumen').innerHTML =
+    `🕐 Llegada: ${_horaHHMM(c.llegadaTs)}<br>🚌 Inicio: ${_horaHHMM(c.inicioTs)}<br>⏱ Espera: ${espera} min<br>🏁 Fin: ${_horaHHMM(c.finTs)}`;
 }
 
-function _tickEspera(contexto){
-  const prefijo = contexto === 'modal' ? 'crono-m-' : 'crono-';
-  const el = document.getElementById(prefijo+'contador');
-  if(!el || !_crono.llegadaTs) return;
-  const segs = Math.floor((Date.now() - _crono.llegadaTs) / 1000);
-  const mm = _pad(Math.floor(segs / 60));
-  const ss = _pad(segs % 60);
-  el.textContent = mm+':'+ss;
+// ── Mantener pantalla encendida mientras el cronómetro corre ──
+function cronoActivo(){ return ['form','modal'].some(c=>_cr[c].llegadaTs && !_cr[c].finTs); }
+async function wakeOn(){
+  try{
+    if('wakeLock' in navigator && !_wakeLock){
+      _wakeLock = await navigator.wakeLock.request('screen');
+      _wakeLock.addEventListener('release',()=>{ _wakeLock=null; });
+    }
+  }catch(e){ /* no soportado o denegado: el cronómetro igual funciona */ }
 }
+function wakeOff(){ try{ if(_wakeLock){ _wakeLock.release(); _wakeLock=null; } }catch(e){} }
+
+function _persist(ctx){ if(ctx==='modal') saveCompDraft(); else saveDraft(); }
 
 // Paso 1 — llegué al sitio
-function cronoLlegada(ctx){
-  const contexto = ctx || 'form';
-  _crono.llegadaTs = Date.now();
-  _crono.inicioTs  = null;
-  _crono.contexto  = contexto;
-  clearInterval(_crono.intervalo);
-
-  const prefijo = contexto === 'modal' ? 'crono-m-' : 'crono-';
-  document.getElementById(prefijo+'step-llegada').style.display = 'none';
-  document.getElementById(prefijo+'step-espera').style.display  = '';
-  document.getElementById(prefijo+'step-viaje').style.display   = 'none';
-  document.getElementById(prefijo+'step-ok').style.display      = 'none';
-  document.getElementById(prefijo+'hora-llegada').textContent = _horaHHMM(_crono.llegadaTs);
-
-  _crono.intervalo = setInterval(()=>_tickEspera(contexto), 1000);
+function cronoLlegada(ctx='form'){
+  const c=_cr[ctx];
+  c.llegadaTs=Date.now(); c.inicioTs=null; c.finTs=null;
+  _renderCrono(ctx); wakeOn(); _persist(ctx);
   toast('⏱ Espera iniciada');
 }
 
 // Paso 2 — iniciar viaje
-function cronoInicio(ctx){
-  const contexto = ctx || _crono.contexto || 'form';
-  if(!_crono.llegadaTs){ toast('Primero registra la llegada'); return; }
-  _crono.inicioTs = Date.now();
-  clearInterval(_crono.intervalo);
-  _crono.intervalo = null;
-
-  const espera = _diffMins(_crono.llegadaTs, _crono.inicioTs);
-  const prefijo = contexto === 'modal' ? 'crono-m-' : 'crono-';
-
-  document.getElementById(prefijo+'step-llegada').style.display = 'none';
-  document.getElementById(prefijo+'step-espera').style.display  = 'none';
-  document.getElementById(prefijo+'step-viaje').style.display   = '';
-  document.getElementById(prefijo+'step-ok').style.display      = 'none';
-  document.getElementById(prefijo+'hora-inicio').textContent  = _horaHHMM(_crono.inicioTs);
-  document.getElementById(prefijo+'espera-ok').textContent    = espera;
-
-  // Rellenar campo H. Inicio en formulario o modal
-  const hInicio = _horaHHMM(_crono.inicioTs);
-  if(contexto === 'modal'){
-    const el = document.getElementById('comp-hinicio');
-    if(el){ el.value = hInicio; recalcCompTotal(); }
+function cronoInicio(ctx='form'){
+  const c=_cr[ctx];
+  if(!c.llegadaTs){ toast('Primero registra la llegada'); return; }
+  c.inicioTs=Date.now(); c.finTs=null;
+  const espera=_diffMins(c.llegadaTs,c.inicioTs), hInicio=_horaHHMM(c.inicioTs);
+  if(ctx==='modal'){
+    document.getElementById('comp-hinicio').value=hInicio;
+    document.getElementById('comp-espera').value=espera;
+    recalcCompTotal();
   } else {
-    const el = document.getElementById('f-hinicio');
-    if(el){ el.value = hInicio; updateReceiptTotal(); }
+    document.getElementById('f-hinicio').value=hInicio;
+    document.getElementById('f-espera').value=espera;
+    updateReceiptTotal();
   }
-
-  // Rellenar tiempo de espera
-  if(contexto === 'modal'){
-    const el = document.getElementById('comp-espera');
-    if(el){ el.value = espera; recalcCompTotal(); }
-  } else {
-    const el = document.getElementById('f-espera');
-    if(el){ el.value = espera; updateReceiptTotal(); }
-  }
-
+  _renderCrono(ctx); _persist(ctx);
   toast('🚌 Viaje iniciado');
 }
 
 // Paso 3 — finalizar viaje
-function cronoFin(ctx){
-  const contexto = ctx || _crono.contexto || 'form';
-  if(!_crono.inicioTs){ toast('Primero inicia el viaje'); return; }
-  const finTs  = Date.now();
-  const hFin   = _horaHHMM(finTs);
-  const espera = _crono.llegadaTs ? _diffMins(_crono.llegadaTs, _crono.inicioTs) : 0;
-  const hInicio = _horaHHMM(_crono.inicioTs);
-  const hLlegada = _crono.llegadaTs ? _horaHHMM(_crono.llegadaTs) : '—';
-
-  const prefijo = contexto === 'modal' ? 'crono-m-' : 'crono-';
-  document.getElementById(prefijo+'step-llegada').style.display = 'none';
-  document.getElementById(prefijo+'step-espera').style.display  = 'none';
-  document.getElementById(prefijo+'step-viaje').style.display   = 'none';
-  document.getElementById(prefijo+'step-ok').style.display      = '';
-  document.getElementById(prefijo+'resumen').innerHTML =
-    `🕐 Llegada: ${hLlegada}<br>🚌 Inicio: ${hInicio}<br>⏱ Espera: ${espera} min<br>🏁 Fin: ${hFin}`;
-
-  // Rellenar hora de fin en formulario o modal
-  if(contexto === 'modal'){
-    const el = document.getElementById('comp-fin');
-    if(el) el.value = hFin;
+function cronoFin(ctx='form'){
+  const c=_cr[ctx];
+  if(!c.inicioTs){ toast('Primero inicia el viaje'); return; }
+  c.finTs=Date.now();
+  const hFin=_horaHHMM(c.finTs);
+  if(ctx==='modal'){
+    document.getElementById('comp-fin').value=hFin;
     recalcCompTotal();
   } else {
-    const el = document.getElementById('f-fin');
-    if(el) el.value = hFin;
+    document.getElementById('f-fin').value=hFin;
   }
-
+  _renderCrono(ctx);
+  if(!cronoActivo()) wakeOff();
+  _persist(ctx);
   toast('🏁 Viaje finalizado — tiempos registrados');
 }
 
-// Reiniciar cronómetro
-function cronoReset(ctx){
-  const contexto = ctx || _crono.contexto || 'form';
-  clearInterval(_crono.intervalo);
-  _crono.llegadaTs = null;
-  _crono.inicioTs  = null;
-  _crono.intervalo = null;
-
-  const prefijo = contexto === 'modal' ? 'crono-m-' : 'crono-';
-  document.getElementById(prefijo+'step-llegada').style.display = '';
-  document.getElementById(prefijo+'step-espera').style.display  = 'none';
-  document.getElementById(prefijo+'step-viaje').style.display   = 'none';
-  document.getElementById(prefijo+'step-ok').style.display      = 'none';
-  const cnt = document.getElementById(prefijo+'contador');
-  if(cnt) cnt.textContent = '00:00';
+// Reiniciar cronómetro (silent=true: no guarda borrador, para usar dentro de initForm)
+function cronoReset(ctx='form', silent=false){
+  const c=_cr[ctx];
+  c.llegadaTs=c.inicioTs=c.finTs=null;
+  _renderCrono(ctx);
+  if(!cronoActivo()) wakeOff();
+  if(!silent) _persist(ctx);
 }
+
+// ── Borrador del formulario "Nuevo recibo" ────────────────
+const DRAFT_FIELDS=['f-fecha','f-chofer','f-area','f-solicita','f-empresa','f-costo',
+  'f-desde','f-hasta','f-hinicio','f-espera','f-fin','f-paradas','f-detalle','f-total'];
+
+function draftKey(){ return 'tl_draft_'+(currentUser?currentUser.id:'local'); }
+function compKey(){  return 'tl_draft_comp_'+(currentUser?currentUser.id:'local'); }
+
+function saveDraft(){
+  if(_restoring || !_formReady) return;
+  const fields={};
+  DRAFT_FIELDS.forEach(id=>{ const el=document.getElementById(id); if(el) fields[id]=el.value; });
+  const f=_cr.form;
+  // ¿El usuario realmente ingresó algo? (fecha por defecto y paradas=0 no cuentan)
+  const touched = !!selVehicle || !!f.llegadaTs || DRAFT_FIELDS.some(id=>{
+    const v=fields[id]; if(!v) return false;
+    if(id==='f-fecha') return false;
+    if(id==='f-paradas') return v!=='0';
+    return true;
+  });
+  try{
+    if(!touched){ localStorage.removeItem(draftKey()); return; }
+    localStorage.setItem(draftKey(), JSON.stringify({
+      fields, veh:selVehicle,
+      base: document.getElementById('f-total').dataset.baseTotal||'',
+      cr:{ llegadaTs:f.llegadaTs, inicioTs:f.inicioTs, finTs:f.finTs },
+      saved: Date.now()
+    }));
+  }catch(e){}
+}
+
+function restoreDraft(){
+  let d=null;
+  try{ d=JSON.parse(localStorage.getItem(draftKey())||'null'); }catch(e){}
+  if(!d) return false;
+  _restoring=true;
+  try{
+    DRAFT_FIELDS.forEach(id=>{
+      const el=document.getElementById(id);
+      if(el && d.fields && d.fields[id]!==undefined) el.value=d.fields[id];
+    });
+    document.getElementById('f-total').dataset.baseTotal=d.base||'';
+    if(d.veh){
+      selVehicle=d.veh;
+      document.querySelectorAll('.vo').forEach(b=>b.classList.remove('sel'));
+      const vb=document.getElementById('v-'+d.veh); if(vb) vb.classList.add('sel');
+    }
+    if(d.cr){
+      Object.assign(_cr.form,{ llegadaTs:d.cr.llegadaTs||null, inicioTs:d.cr.inicioTs||null, finTs:d.cr.finTs||null });
+      _renderCrono('form');
+      if(_cr.form.llegadaTs && !_cr.form.finTs) wakeOn();
+    }
+  } finally { _restoring=false; }
+  const b=document.getElementById('draft-banner'); if(b) b.style.display='flex';
+  return true;
+}
+
+function clearDraft(){ try{ localStorage.removeItem(draftKey()); }catch(e){} }
+
+function discardDraft(){
+  if(!confirm('¿Descartar el borrador y empezar un recibo nuevo?')) return;
+  initForm(); clearDraft();
+}
+
+// ── Borrador del modal "completar orden" ──────────────────
+function saveCompDraft(){
+  if(_restoring || !_curOrdenId) return;
+  const m=_cr.modal;
+  try{
+    localStorage.setItem(compKey(), JSON.stringify({
+      ordenId:_curOrdenId,
+      hinicio:document.getElementById('comp-hinicio').value,
+      fin:    document.getElementById('comp-fin').value,
+      espera: document.getElementById('comp-espera').value,
+      total:  document.getElementById('comp-total').value,
+      cr:{ llegadaTs:m.llegadaTs, inicioTs:m.inicioTs, finTs:m.finTs },
+      saved:Date.now()
+    }));
+  }catch(e){}
+}
+function clearCompDraft(){ try{ localStorage.removeItem(compKey()); }catch(e){} }
+
+// ── Guardar al instante cuando el usuario escribe o la app pasa a segundo plano ──
+document.getElementById('s-nuevo').addEventListener('input', saveDraft);
+document.getElementById('s-nuevo').addEventListener('change', saveDraft);
+document.getElementById('completar-modal').addEventListener('input', saveCompDraft);
+
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='hidden'){
+    saveDraft(); if(_curOrdenId) saveCompDraft();
+  } else {
+    // Al volver (pantalla desbloqueada): re-adquirir pantalla activa y refrescar contador
+    if(cronoActivo()) wakeOn();
+    ['form','modal'].forEach(c=>{ if(_cr[c].llegadaTs && !_cr[c].inicioTs) _tickEspera(c); });
+  }
+});
+window.addEventListener('pagehide',()=>{ saveDraft(); if(_curOrdenId) saveCompDraft(); });
 
 // ── 13. Auth ──────────────────────────────────────────────
 function showAuthScreen(){ document.getElementById('auth-screen').style.display='flex'; }
@@ -1080,6 +1185,8 @@ async function doLogout(){
   if(!confirm('¿Cerrar sesión?')) return;
   if(_sb) await _sb.auth.signOut();
   currentUser=null; useSupabase=false;
+  _loggedUserId=null; _formReady=false;
+  cronoReset('form', true); cronoReset('modal', true);
   document.getElementById('user-email').textContent='';
   showAuthScreen();
 }
@@ -1099,11 +1206,17 @@ document.getElementById('sum-to').value=today;
 
 async function onUserLoggedIn(user){
   currentUser=user; useSupabase=true;
+  // Supabase vuelve a emitir el evento al refrescar el token o reabrir la app:
+  // si ya estaba cargado este usuario, NO reinicializar (borraría lo que se está escribiendo)
+  if(_loggedUserId===user.id){ hideAuthScreen(); return; }
+  _loggedUserId=user.id;
   document.getElementById('user-email').textContent=user.email;
   hideAuthScreen();
   await Promise.all([ loadSettings(), loadCatalogs() ]);
   renderCatalogControls();
   initForm();
+  restoreDraft();
+  _formReady=true;
   renderReceipts();
   checkOrdenesbadge();
 }
@@ -1112,7 +1225,7 @@ async function initApp(){
   if(!_sb){
     // Sin Supabase: modo local directo
     await Promise.all([ loadSettings(), loadCatalogs() ]);
-    renderCatalogControls(); initForm(); renderReceipts();
+    renderCatalogControls(); initForm(); restoreDraft(); _formReady=true; renderReceipts();
     return;
   }
 
