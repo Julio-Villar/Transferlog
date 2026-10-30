@@ -152,6 +152,8 @@ function initForm(){
   // Limpiar desglose de total
   const desglose=document.getElementById('total-desglose');
   if(desglose) desglose.innerHTML='';
+  // Resetear cronómetro del formulario
+  cronoReset('form');
   renderCatalogControls();
   ['f-chofer','f-area','f-solicita','f-empresa','f-costo'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
@@ -541,10 +543,11 @@ async function completarOrden(){
   const hint = document.getElementById('comp-total-hint');
   hint.textContent = o.total ? `(base: ${fmtCLP(o.total)})` : '';
 
-  // Resetear botón
+  // Resetear botón y cronómetro del modal
   const btn = document.getElementById('completar-btn');
   btn.disabled = false;
   btn.innerHTML = '<i class="ti ti-circle-check"></i> Crear recibo';
+  cronoReset('modal');
 
   document.getElementById('completar-modal').classList.add('open');
 }
@@ -849,7 +852,144 @@ function renderCatalogs(){} // catálogos gestionados desde admin
   if(el) el.addEventListener('click',function(e){if(e.target===this) this.classList.remove('open');});
 });
 
-// ── 12. Auth ──────────────────────────────────────────────
+// ── 12. Cronómetro de servicio ────────────────────────────
+// Estado del cronómetro — persiste aunque el usuario cambie de pestaña
+const _crono = {
+  llegadaTs:  null,   // timestamp llegada al sitio
+  inicioTs:   null,   // timestamp inicio del viaje
+  intervalo:  null,   // setInterval del contador
+  contexto:   null,   // 'form' | 'modal'
+};
+
+function _pad(n){ return String(n).padStart(2,'0'); }
+
+function _horaHHMM(ts){
+  const d = new Date(ts);
+  return _pad(d.getHours())+':'+_pad(d.getMinutes());
+}
+
+function _diffMins(a, b){
+  return Math.floor((b - a) / 60000);
+}
+
+function _tickEspera(contexto){
+  const prefijo = contexto === 'modal' ? 'crono-m-' : 'crono-';
+  const el = document.getElementById(prefijo+'contador');
+  if(!el || !_crono.llegadaTs) return;
+  const segs = Math.floor((Date.now() - _crono.llegadaTs) / 1000);
+  const mm = _pad(Math.floor(segs / 60));
+  const ss = _pad(segs % 60);
+  el.textContent = mm+':'+ss;
+}
+
+// Paso 1 — llegué al sitio
+function cronoLlegada(ctx){
+  const contexto = ctx || 'form';
+  _crono.llegadaTs = Date.now();
+  _crono.inicioTs  = null;
+  _crono.contexto  = contexto;
+  clearInterval(_crono.intervalo);
+
+  const prefijo = contexto === 'modal' ? 'crono-m-' : 'crono-';
+  document.getElementById(prefijo+'step-llegada').style.display = 'none';
+  document.getElementById(prefijo+'step-espera').style.display  = '';
+  document.getElementById(prefijo+'step-viaje').style.display   = 'none';
+  document.getElementById(prefijo+'step-ok').style.display      = 'none';
+  document.getElementById(prefijo+'hora-llegada').textContent = _horaHHMM(_crono.llegadaTs);
+
+  _crono.intervalo = setInterval(()=>_tickEspera(contexto), 1000);
+  toast('⏱ Espera iniciada');
+}
+
+// Paso 2 — iniciar viaje
+function cronoInicio(ctx){
+  const contexto = ctx || _crono.contexto || 'form';
+  if(!_crono.llegadaTs){ toast('Primero registra la llegada'); return; }
+  _crono.inicioTs = Date.now();
+  clearInterval(_crono.intervalo);
+  _crono.intervalo = null;
+
+  const espera = _diffMins(_crono.llegadaTs, _crono.inicioTs);
+  const prefijo = contexto === 'modal' ? 'crono-m-' : 'crono-';
+
+  document.getElementById(prefijo+'step-llegada').style.display = 'none';
+  document.getElementById(prefijo+'step-espera').style.display  = 'none';
+  document.getElementById(prefijo+'step-viaje').style.display   = '';
+  document.getElementById(prefijo+'step-ok').style.display      = 'none';
+  document.getElementById(prefijo+'hora-inicio').textContent  = _horaHHMM(_crono.inicioTs);
+  document.getElementById(prefijo+'espera-ok').textContent    = espera;
+
+  // Rellenar campo H. Inicio en formulario o modal
+  const hInicio = _horaHHMM(_crono.inicioTs);
+  if(contexto === 'modal'){
+    const el = document.getElementById('comp-hinicio');
+    if(el){ el.value = hInicio; recalcCompTotal(); }
+  } else {
+    const el = document.getElementById('f-hinicio');
+    if(el){ el.value = hInicio; updateReceiptTotal(); }
+  }
+
+  // Rellenar tiempo de espera
+  if(contexto === 'modal'){
+    const el = document.getElementById('comp-espera');
+    if(el){ el.value = espera; recalcCompTotal(); }
+  } else {
+    const el = document.getElementById('f-espera');
+    if(el){ el.value = espera; updateReceiptTotal(); }
+  }
+
+  toast('🚌 Viaje iniciado');
+}
+
+// Paso 3 — finalizar viaje
+function cronoFin(ctx){
+  const contexto = ctx || _crono.contexto || 'form';
+  if(!_crono.inicioTs){ toast('Primero inicia el viaje'); return; }
+  const finTs  = Date.now();
+  const hFin   = _horaHHMM(finTs);
+  const espera = _crono.llegadaTs ? _diffMins(_crono.llegadaTs, _crono.inicioTs) : 0;
+  const hInicio = _horaHHMM(_crono.inicioTs);
+  const hLlegada = _crono.llegadaTs ? _horaHHMM(_crono.llegadaTs) : '—';
+
+  const prefijo = contexto === 'modal' ? 'crono-m-' : 'crono-';
+  document.getElementById(prefijo+'step-llegada').style.display = 'none';
+  document.getElementById(prefijo+'step-espera').style.display  = 'none';
+  document.getElementById(prefijo+'step-viaje').style.display   = 'none';
+  document.getElementById(prefijo+'step-ok').style.display      = '';
+  document.getElementById(prefijo+'resumen').innerHTML =
+    `🕐 Llegada: ${hLlegada}<br>🚌 Inicio: ${hInicio}<br>⏱ Espera: ${espera} min<br>🏁 Fin: ${hFin}`;
+
+  // Rellenar hora de fin en formulario o modal
+  if(contexto === 'modal'){
+    const el = document.getElementById('comp-fin');
+    if(el) el.value = hFin;
+    recalcCompTotal();
+  } else {
+    const el = document.getElementById('f-fin');
+    if(el) el.value = hFin;
+  }
+
+  toast('🏁 Viaje finalizado — tiempos registrados');
+}
+
+// Reiniciar cronómetro
+function cronoReset(ctx){
+  const contexto = ctx || _crono.contexto || 'form';
+  clearInterval(_crono.intervalo);
+  _crono.llegadaTs = null;
+  _crono.inicioTs  = null;
+  _crono.intervalo = null;
+
+  const prefijo = contexto === 'modal' ? 'crono-m-' : 'crono-';
+  document.getElementById(prefijo+'step-llegada').style.display = '';
+  document.getElementById(prefijo+'step-espera').style.display  = 'none';
+  document.getElementById(prefijo+'step-viaje').style.display   = 'none';
+  document.getElementById(prefijo+'step-ok').style.display      = 'none';
+  const cnt = document.getElementById(prefijo+'contador');
+  if(cnt) cnt.textContent = '00:00';
+}
+
+// ── 13. Auth ──────────────────────────────────────────────
 function showAuthScreen(){ document.getElementById('auth-screen').style.display='flex'; }
 function hideAuthScreen(){ document.getElementById('auth-screen').style.display='none'; }
 
