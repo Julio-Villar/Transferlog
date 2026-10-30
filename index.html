@@ -16,28 +16,23 @@
 
 <!-- Auth screen -->
 <div id="auth-screen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:var(--bgw);border:var(--border);border-radius:var(--rad);padding:28px 22px;width:100%;max-width:380px">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:24px">
-      <div class="hicon"><i class="ti ti-bus"></i></div>
-      <div><div style="font-size:18px;font-weight:700;color:var(--text)">TransferLog</div><div style="font-size:12px;color:var(--text2)">Gestión de traslados de personal</div></div>
+  <div style="background:var(--bgw);border:var(--border);border-radius:var(--rad);padding:32px 24px;width:100%;max-width:340px">
+    <div style="text-align:center;margin-bottom:24px">
+      <div style="width:52px;height:52px;background:#E6F1FB;border-radius:var(--rad);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:26px;color:#185FA5"><i class="ti ti-bus"></i></div>
+      <div style="font-size:20px;font-weight:700;color:var(--text)">TransferLog</div>
+      <div style="font-size:12px;color:var(--text2);margin-top:3px">Gestión de traslados de personal</div>
     </div>
-    <div id="auth-tabs" style="display:flex;border:var(--border);border-radius:var(--rad-sm);overflow:hidden;margin-bottom:18px">
-      <button id="tab-login" onclick="showAuthTab('login')" style="flex:1;padding:8px;font-size:13px;font-weight:500;border:none;background:#185FA5;color:#fff;cursor:pointer;font-family:inherit">Iniciar sesión</button>
-      <button id="tab-register" onclick="showAuthTab('register')" style="flex:1;padding:8px;font-size:13px;font-weight:500;border:none;background:transparent;color:var(--text2);cursor:pointer;font-family:inherit">Registrarse</button>
+    <div class="field">
+      <label>Nombre de usuario</label>
+      <input type="text" id="login-username" placeholder="Ej: juan.perez" autocomplete="username" autocorrect="off" autocapitalize="off" spellcheck="false" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
     </div>
-    <div id="auth-login">
-      <div class="field"><label>Correo electrónico</label><input type="email" id="login-email" placeholder="tucorreo@ejemplo.com" autocomplete="email" onkeydown="if(event.key==='Enter')doLogin()"></div>
-      <div class="field"><label>Contraseña</label><input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
-      <button class="btn primary" id="login-btn" onclick="doLogin()" style="width:100%;justify-content:center"><i class="ti ti-login"></i> Entrar</button>
-      <button class="btn" onclick="doForgot()" style="width:100%;justify-content:center;margin-top:8px"><i class="ti ti-key"></i> Olvidé mi contraseña</button>
+    <div class="field">
+      <label>Contraseña</label>
+      <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
     </div>
-    <div id="auth-register" style="display:none">
-      <div class="field"><label>Correo electrónico</label><input type="email" id="reg-email" placeholder="tucorreo@ejemplo.com" autocomplete="email"></div>
-      <div class="field"><label>Contraseña</label><input type="password" id="reg-pass" placeholder="Mínimo 6 caracteres" autocomplete="new-password"></div>
-      <div class="field"><label>Confirmar contraseña</label><input type="password" id="reg-pass2" placeholder="Repite la contraseña" autocomplete="new-password"></div>
-      <button class="btn primary" id="reg-btn" onclick="doRegister()" style="width:100%;justify-content:center"><i class="ti ti-user-plus"></i> Crear cuenta</button>
-    </div>
-    <div id="auth-msg" style="font-size:12px;text-align:center;margin-top:10px;min-height:18px"></div>
+    <button class="btn primary" id="login-btn" onclick="doLogin()" style="width:100%;justify-content:center;margin-top:4px"><i class="ti ti-login"></i> Entrar</button>
+    <div id="auth-msg" style="font-size:12px;text-align:center;margin-top:12px;min-height:18px;color:#A32D2D"></div>
+    <div style="font-size:11px;color:var(--text2);text-align:center;margin-top:16px">Tu cuenta es creada por el administrador</div>
   </div>
 </div>
 
@@ -106,6 +101,53 @@
         <div class="r2">
           <div class="field"><label>Traslado desde</label><input type="text" id="f-desde" placeholder="Origen"></div>
           <div class="field"><label>Hasta</label><input type="text" id="f-hasta" placeholder="Destino"></div>
+        </div>
+        <!-- Cronómetro de servicio -->
+        <div id="crono-panel" style="background:var(--bg);border-radius:var(--rad-sm);padding:12px;margin-bottom:10px">
+          <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;display:flex;align-items:center;gap:6px">
+            <i class="ti ti-clock"></i> Cronómetro de servicio
+          </div>
+          <!-- Estado inicial -->
+          <div id="crono-step-llegada">
+            <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Presiona al llegar al punto de recogida para iniciar el conteo de espera.</div>
+            <button class="btn primary" onclick="cronoLlegada()" style="width:100%;justify-content:center;background:#185FA5">
+              <i class="ti ti-map-pin"></i> Llegué al sitio
+            </button>
+          </div>
+          <!-- Conteo de espera -->
+          <div id="crono-step-espera" style="display:none">
+            <div style="text-align:center;margin-bottom:10px">
+              <div style="font-size:11px;color:var(--text2)">Esperando desde las</div>
+              <div id="crono-hora-llegada" style="font-size:18px;font-weight:700;color:#185FA5"></div>
+              <div style="font-size:11px;color:var(--text2);margin-top:4px">Tiempo de espera</div>
+              <div id="crono-contador" style="font-size:32px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums">00:00</div>
+            </div>
+            <button class="btn primary" onclick="cronoInicio()" style="width:100%;justify-content:center;background:#0F6E56">
+              <i class="ti ti-player-play"></i> Iniciar viaje
+            </button>
+          </div>
+          <!-- Viaje en curso -->
+          <div id="crono-step-viaje" style="display:none">
+            <div style="text-align:center;margin-bottom:10px">
+              <div style="font-size:11px;color:var(--text2)">Viaje iniciado a las</div>
+              <div id="crono-hora-inicio" style="font-size:18px;font-weight:700;color:#0F6E56"></div>
+              <div style="font-size:11px;color:var(--text2);margin-top:4px">Espera registrada: <strong id="crono-espera-ok"></strong> min</div>
+            </div>
+            <button class="btn primary" onclick="cronoFin()" style="width:100%;justify-content:center;background:#A32D2D">
+              <i class="ti ti-flag"></i> Finalizar viaje
+            </button>
+          </div>
+          <!-- Completado -->
+          <div id="crono-step-ok" style="display:none">
+            <div style="text-align:center;padding:6px 0">
+              <div style="font-size:22px;margin-bottom:6px">✅</div>
+              <div style="font-size:12px;color:var(--text2)">Tiempos registrados automáticamente</div>
+              <div id="crono-resumen" style="font-size:12px;color:var(--text);margin-top:6px;line-height:1.8"></div>
+            </div>
+            <button class="btn" onclick="cronoReset()" style="width:100%;justify-content:center;margin-top:8px">
+              <i class="ti ti-refresh"></i> Reiniciar cronómetro
+            </button>
+          </div>
         </div>
         <div class="r3">
           <div class="field"><label>H. Inicio</label><input type="time" id="f-hinicio" oninput="updateReceiptTotal()"></div>
@@ -219,6 +261,47 @@
       <div style="font-size:13px;color:var(--text2)">Completa los datos finales del servicio antes de crear el recibo.</div>
     </div>
     <div id="completar-resumen" style="background:var(--bg);border-radius:var(--rad-sm);padding:10px;margin-bottom:14px;font-size:12px;color:var(--text2);line-height:1.8"></div>
+    <!-- Cronómetro en modal completar -->
+    <div id="crono-panel-modal" style="background:var(--bg);border-radius:var(--rad-sm);padding:12px;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;display:flex;align-items:center;gap:6px">
+        <i class="ti ti-clock"></i> Cronómetro de servicio
+      </div>
+      <div id="crono-m-step-llegada">
+        <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Presiona al llegar al punto de recogida.</div>
+        <button class="btn primary" onclick="cronoLlegada('modal')" style="width:100%;justify-content:center">
+          <i class="ti ti-map-pin"></i> Llegué al sitio
+        </button>
+      </div>
+      <div id="crono-m-step-espera" style="display:none">
+        <div style="text-align:center;margin-bottom:10px">
+          <div style="font-size:11px;color:var(--text2)">Esperando desde las</div>
+          <div id="crono-m-hora-llegada" style="font-size:16px;font-weight:700;color:#185FA5"></div>
+          <div id="crono-m-contador" style="font-size:28px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums">00:00</div>
+        </div>
+        <button class="btn primary" onclick="cronoInicio('modal')" style="width:100%;justify-content:center;background:#0F6E56">
+          <i class="ti ti-player-play"></i> Iniciar viaje
+        </button>
+      </div>
+      <div id="crono-m-step-viaje" style="display:none">
+        <div style="text-align:center;margin-bottom:10px">
+          <div style="font-size:11px;color:var(--text2)">Viaje iniciado a las</div>
+          <div id="crono-m-hora-inicio" style="font-size:16px;font-weight:700;color:#0F6E56"></div>
+          <div style="font-size:11px;color:var(--text2);margin-top:4px">Espera: <strong id="crono-m-espera-ok"></strong> min</div>
+        </div>
+        <button class="btn primary" onclick="cronoFin('modal')" style="width:100%;justify-content:center;background:#A32D2D">
+          <i class="ti ti-flag"></i> Finalizar viaje
+        </button>
+      </div>
+      <div id="crono-m-step-ok" style="display:none">
+        <div style="text-align:center;padding:4px 0">
+          <div style="font-size:20px;margin-bottom:4px">✅</div>
+          <div id="crono-m-resumen" style="font-size:12px;color:var(--text);line-height:1.8"></div>
+        </div>
+        <button class="btn" onclick="cronoReset('modal')" style="width:100%;justify-content:center;margin-top:8px">
+          <i class="ti ti-refresh"></i> Reiniciar
+        </button>
+      </div>
+    </div>
     <!-- Campos editables -->
     <div style="background:var(--bg);border-radius:var(--rad-sm);padding:12px;margin-bottom:14px">
       <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Datos finales del servicio</div>
