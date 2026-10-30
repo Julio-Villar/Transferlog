@@ -700,7 +700,7 @@ function exportPDF(){
   doc.setFont('helvetica','bold');doc.setFontSize(14);doc.setTextColor(255,255,255);
   doc.text('RECIBO DE SERVICIO',W/2,11,{align:'center'});
   doc.setFontSize(8);doc.setFont('helvetica','normal');
-  doc.text('TransferLog · Traslado de Personal',W/2,16.5,{align:'center'});
+  doc.text('Transportes Tapia Zuleta · Traslado de Personal',W/2,16.5,{align:'center'});
   let y=27;
   const box=(label,val,x,cy)=>{
     if(!val) return;
