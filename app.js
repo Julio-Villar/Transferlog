@@ -690,17 +690,14 @@ async function calcSummary(){
 }
 
 // ── 10. PDF ───────────────────────────────────────────────
-function exportPDF(){
-  if(!_curReceipt){toast('Sin recibo seleccionado');return;}
-  if(!jsPDF){toast('jsPDF no cargó');return;}
-  const r=_curReceipt;
-  const doc=new jsPDF({unit:'mm',format:'a5',orientation:'portrait'});
+// Dibuja un recibo completo (formato A5) en la página actual del documento
+function drawReceiptPage(doc, r){
   const W=148,M=14;
   doc.setFillColor(24,95,165);doc.rect(0,0,W,20,'F');
   doc.setFont('helvetica','bold');doc.setFontSize(14);doc.setTextColor(255,255,255);
   doc.text('RECIBO DE SERVICIO',W/2,11,{align:'center'});
   doc.setFontSize(8);doc.setFont('helvetica','normal');
-  doc.text('Transportes Tapia Zuleta · Traslado de Personal',W/2,16.5,{align:'center'});
+  doc.text('TransferLog · Traslado de Personal',W/2,16.5,{align:'center'});
   let y=27;
   const box=(label,val,x,cy)=>{
     if(!val) return;
@@ -732,8 +729,37 @@ function exportPDF(){
   doc.setFontSize(7);doc.setTextColor(150,150,150);doc.setFont('helvetica','normal');
   doc.text('Firma',M,y+12);
   doc.text('Recibo #'+r.num+' · '+new Date().toLocaleDateString('es-CL'),W-M,y+12,{align:'right'});
+}
+
+function exportPDF(){
+  if(!_curReceipt){toast('Sin recibo seleccionado');return;}
+  if(!jsPDF){toast('jsPDF no cargó');return;}
+  const r=_curReceipt;
+  const doc=new jsPDF({unit:'mm',format:'a5',orientation:'portrait'});
+  drawReceiptPage(doc, r);
   doc.save('recibo-'+r.num+'-'+r.fecha+'.pdf');
   toast('PDF descargado ✓');
+}
+
+// Un solo PDF con varios recibos (uno por página) según rango de fechas y vehículo
+async function exportReceiptsRangePDF(){
+  if(!jsPDF){toast('jsPDF no disponible');return;}
+  const from=document.getElementById('sum-from').value;
+  const to=document.getElementById('sum-to').value;
+  let receipts=await getReceipts();
+  if(from) receipts=receipts.filter(r=>r.fecha>=from);
+  if(to)   receipts=receipts.filter(r=>r.fecha<=to);
+  if(vehFilter!=='todos') receipts=receipts.filter(r=>r.vehiculo===vehFilter);
+  if(!receipts.length){toast('Sin recibos en ese período');return;}
+  receipts.sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||'')||(a.num||0)-(b.num||0));
+
+  const doc=new jsPDF({unit:'mm',format:'a5',orientation:'portrait'});
+  receipts.forEach((r,i)=>{
+    if(i>0) doc.addPage('a5','portrait');
+    drawReceiptPage(doc, r);
+  });
+  doc.save('recibos-'+(from||'inicio')+'_a_'+(to||'hoy')+'.pdf');
+  toast(receipts.length+' recibos exportados ✓');
 }
 
 async function exportSummaryPDF(){
