@@ -1124,15 +1124,6 @@ window.addEventListener('pagehide',()=>{ saveDraft(); if(_curOrdenId) saveCompDr
 function showAuthScreen(){ document.getElementById('auth-screen').style.display='flex'; }
 function hideAuthScreen(){ document.getElementById('auth-screen').style.display='none'; }
 
-function showAuthTab(tab){
-  const isLogin = tab==='login';
-  document.getElementById('tab-login').style.cssText    = isLogin ? 'flex:1;padding:8px;font-size:13px;font-weight:500;border:none;background:#185FA5;color:#fff;cursor:pointer;font-family:inherit' : 'flex:1;padding:8px;font-size:13px;font-weight:500;border:none;background:transparent;color:var(--text2);cursor:pointer;font-family:inherit';
-  document.getElementById('tab-register').style.cssText = isLogin ? 'flex:1;padding:8px;font-size:13px;font-weight:500;border:none;background:transparent;color:var(--text2);cursor:pointer;font-family:inherit' : 'flex:1;padding:8px;font-size:13px;font-weight:500;border:none;background:#185FA5;color:#fff;cursor:pointer;font-family:inherit';
-  document.getElementById('auth-login').style.display    = isLogin ? '' : 'none';
-  document.getElementById('auth-register').style.display = isLogin ? 'none' : '';
-  setAuthMsg('');
-}
-
 function setAuthMsg(msg, ok=false){
   const el=document.getElementById('auth-msg');
   el.textContent=msg;
@@ -1155,21 +1146,6 @@ async function doLogin(){
   setBtnLoading('login-btn',false,'<i class="ti ti-login"></i> Entrar');
   if(error){ setAuthMsg(translateError(error.message)); return; }
   // onAuthStateChange se encarga del resto
-}
-
-async function doRegister(){
-  if(!_sb){ setAuthMsg('Supabase no disponible'); return; }
-  const email=document.getElementById('reg-email').value.trim();
-  const pass=document.getElementById('reg-pass').value;
-  const pass2=document.getElementById('reg-pass2').value;
-  if(!email||!pass){ setAuthMsg('Completa todos los campos'); return; }
-  if(pass!==pass2){ setAuthMsg('Las contraseñas no coinciden'); return; }
-  if(pass.length<6){ setAuthMsg('La contraseña debe tener al menos 6 caracteres'); return; }
-  setBtnLoading('reg-btn',true,'<i class="ti ti-user-plus"></i> Crear cuenta');
-  const { error } = await _sb.auth.signUp({ email, password:pass });
-  setBtnLoading('reg-btn',false,'<i class="ti ti-user-plus"></i> Crear cuenta');
-  if(error){ setAuthMsg(translateError(error.message)); return; }
-  setAuthMsg('¡Cuenta creada! Revisa tu correo para confirmar.', true);
 }
 
 async function doForgot(){
