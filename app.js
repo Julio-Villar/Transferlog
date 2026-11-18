@@ -973,8 +973,17 @@ function _persist(ctx){ if(ctx==='modal') saveCompDraft(); else saveDraft(); }
 function cronoLlegada(ctx='form'){
   const c=_cr[ctx];
   c.llegadaTs=Date.now(); c.inicioTs=null; c.finTs=null;
+  // La "H. Inicio" del recibo es la hora de LLEGADA al sitio (no la del inicio del viaje)
+  const hLlegada=_horaHHMM(c.llegadaTs);
+  if(ctx==='modal'){
+    document.getElementById('comp-hinicio').value=hLlegada;
+    recalcCompTotal();
+  } else {
+    document.getElementById('f-hinicio').value=hLlegada;
+    updateReceiptTotal();
+  }
   _renderCrono(ctx); wakeOn(); _persist(ctx);
-  toast('⏱ Espera iniciada');
+  toast('⏱ Llegada registrada — espera iniciada');
 }
 
 // Paso 2 — iniciar viaje
@@ -982,13 +991,11 @@ function cronoInicio(ctx='form'){
   const c=_cr[ctx];
   if(!c.llegadaTs){ toast('Primero registra la llegada'); return; }
   c.inicioTs=Date.now(); c.finTs=null;
-  const espera=_diffMins(c.llegadaTs,c.inicioTs), hInicio=_horaHHMM(c.inicioTs);
+  const espera=_diffMins(c.llegadaTs,c.inicioTs);
   if(ctx==='modal'){
-    document.getElementById('comp-hinicio').value=hInicio;
     document.getElementById('comp-espera').value=espera;
     recalcCompTotal();
   } else {
-    document.getElementById('f-hinicio').value=hInicio;
     document.getElementById('f-espera').value=espera;
     updateReceiptTotal();
   }
