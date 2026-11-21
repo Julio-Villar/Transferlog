@@ -40,6 +40,8 @@ const LS = {
   set routes(v)   { localStorage.setItem('tl_r',JSON.stringify(v)) },
   get receipts()  { try{return JSON.parse(localStorage.getItem('tl_p')||'[]')}catch{return[]} },
   set receipts(v) { localStorage.setItem('tl_p',JSON.stringify(v)) },
+  get fuel()      { try{return JSON.parse(localStorage.getItem('tl_fuel')||'[]')}catch{return[]} },
+  set fuel(v)     { localStorage.setItem('tl_fuel',JSON.stringify(v)) },
   get settings()  { try{return JSON.parse(localStorage.getItem('tl_settings')||'{}')}catch{return{}} },
   set settings(v) { localStorage.setItem('tl_settings',JSON.stringify(v)) },
   get catalogs()  {
@@ -143,7 +145,7 @@ function selVeh(v){
 }
 
 function initForm(){
-  const today=new Date().toISOString().split('T')[0];
+  const today=localToday();
   document.getElementById('f-fecha').value=today;
   selVehicle='';
   document.querySelectorAll('.vo').forEach(b=>b.classList.remove('sel'));
@@ -308,33 +310,14 @@ async function saveReceipt(){
   btn.innerHTML='<i class="ti ti-check"></i> Guardar recibo'; btn.disabled=false;
 }
 
-async function renderReceipts(){
-  const list=document.getElementById('receipt-list');
-  list.innerHTML='<div class="empty"><i class="ti ti-refresh" style="opacity:.4;animation:spin .7s linear infinite"></i><br>Cargando...</div>';
-  try{
-    const receipts=(await getReceipts()).slice().reverse();
-    if(!receipts.length){
-      list.innerHTML='<div class="empty"><i class="ti ti-file-text"></i>Sin recibos aún.<br>Crea el primero en "Nuevo".</div>'; return;
-    }
-    list.innerHTML='<div class="card">'+receipts.map(r=>`
-      <div class="ri" onclick="openReceipt('${r.id}')">
-        <div class="rh">
-          <div>
-            <span class="rn">Recibo #${r.num}</span>
-            ${r.vehiculo?`<span class="tag ${r.vehiculo}" style="margin-left:5px">${r.vehiculo}</span>`:''}
-            <div class="rd">${fmtDate(r.fecha)}${r.desde&&r.hasta?' · '+escapeHTML(r.desde)+' → '+escapeHTML(r.hasta):''}</div>
-            <div class="rw">${escapeHTML(r.solicita||'')}${r.empresa?' · '+escapeHTML(r.empresa):''}</div>
-          </div>
-          <div class="rtot">${fmtCLP(r.total)}</div>
-        </div>
-      </div>
-    `).join('')+'</div>';
-  }catch(e){ list.innerHTML='<div class="empty">Error al cargar recibos</div>'; }
-}
+// La pestaña "Recibos" ahora es el Dashboard. Se conserva el nombre renderReceipts()
+// para no tener que cambiar las demás funciones que ya la llaman.
+function renderReceipts(){ return renderDashboard(); }
 
 async function openReceipt(id){
-  const receipts=await getReceipts();
-  const r=receipts.find(x=>String(x.id)===String(id)); if(!r) return;
+  let r=_dashRecent.find(x=>String(x.id)===String(id));
+  if(!r){ const receipts=await getReceipts(); r=receipts.find(x=>String(x.id)===String(id)); }
+  if(!r) return;
   _curReceipt=r; curId=id;
   document.getElementById('modal-ttl').textContent='Recibo #'+r.num;
   const row=(l,v)=>v?`<tr><td style="color:var(--text2);padding:3px 0;font-size:12px;width:46%">${l}</td><td style="font-size:12px;padding:3px 0">${escapeHTML(String(v))}</td></tr>`:'';
@@ -893,10 +876,285 @@ function renderCatalogControls(){
 function renderCatalogs(){} // catálogos gestionados desde admin
 
 // ── Cerrar modales al tocar fondo ─────────────────────────
-['detail-modal','orden-modal','rechazo-modal','completar-modal'].forEach(id=>{
+['detail-modal','orden-modal','rechazo-modal','completar-modal','fuel-modal'].forEach(id=>{
   const el=document.getElementById(id);
   if(el) el.addEventListener('click',function(e){if(e.target===this) this.classList.remove('open');});
 });
+
+// ══════════════════════════════════════════════════════════
+// DASHBOARD + CONTROL DE COMBUSTIBLE
+// ══════════════════════════════════════════════════════════
+const FUEL_ALERT_PCT = 15;   // alerta si el último tramo rinde este % MENOS que tu promedio anterior
+
+// Fecha de HOY en hora local. (toISOString() usa UTC: de noche en Chile daría el día siguiente)
+function localToday(){
+  const d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function dateAddDays(str,n){
+  const [y,m,d]=str.split('-').map(Number), dt=new Date(Date.UTC(y,m-1,d+n));
+  return dt.getUTCFullYear()+'-'+String(dt.getUTCMonth()+1).padStart(2,'0')+'-'+String(dt.getUTCDate()).padStart(2,'0');
+}
+const fmtNum=(n,d=1)=>Number(n).toLocaleString('es-CL',{minimumFractionDigits:d,maximumFractionDigits:d});
+const normPat=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+
+let _dashRecent=[];   // últimos recibos mostrados (para abrir el detalle sin volver a consultar)
+let _fuelCache=[];    // cargas de combustible cargadas (para validar odómetro y listar patentes)
+
+// ── Datos de combustible ──
+async function getFuel(){
+  if(useSupabase) return sbFetch('combustible?fecha=gte.'+dateAddDays(localToday(),-400)+'&order=fecha.asc,odometro.asc');
+  return LS.fuel;
+}
+async function addFuelDB(r){
+  if(useSupabase) return (await sbFetch('combustible',{method:'POST',body:JSON.stringify(withUser(r))}))[0];
+  const rows=LS.fuel; rows.push({...r,id:Date.now().toString()}); LS.fuel=rows; return rows[rows.length-1];
+}
+async function delFuelDB(id){
+  if(useSupabase) return sbFetch('combustible?id=eq.'+id,{method:'DELETE'});
+  LS.fuel=LS.fuel.filter(x=>x.id!==id);
+}
+
+// ── Cálculo del rendimiento (método "estanque lleno a estanque lleno") ──
+// Un tramo va desde una carga LLENA hasta la siguiente carga LLENA. Los litros del tramo
+// son todos los cargados desde entonces (incluidas cargas parciales); los km salen del odómetro.
+// `loads` debe ser de UNA sola patente y estar ordenado por odómetro.
+function fuelSegments(loads){
+  const segs=[]; let baseOdo=null, litros=0, monto=0;
+  loads.forEach(l=>{
+    if(baseOdo===null){                       // antes de la primera carga llena no hay punto de partida
+      if(l.lleno){ baseOdo=l.odometro; litros=0; monto=0; }
+      return;
+    }
+    litros+=Number(l.litros); monto+=Number(l.monto);
+    if(l.lleno){
+      const km=l.odometro-baseOdo;
+      if(km>0 && litros>0) segs.push({fecha:l.fecha,km,litros,monto,rend:km/litros,costoKm:monto/km});
+      baseOdo=l.odometro; litros=0; monto=0;
+    }
+  });
+  return segs;
+}
+
+// Estadísticas por vehículo (el que cargó más recientemente va primero)
+function fuelStats(loads){
+  const byP={};
+  loads.forEach(l=>{ (byP[l.patente]=byP[l.patente]||[]).push(l); });
+  return Object.entries(byP).map(([patente,arr])=>{
+    arr.sort((a,b)=>(a.odometro-b.odometro)||(a.fecha<b.fecha?-1:1));
+    const segs=fuelSegments(arr), last=segs[segs.length-1]||null, prev=segs.slice(0,-1);
+    const sum=(xs,k)=>xs.reduce((a,x)=>a+x[k],0);
+    const prevAvg=sum(prev,'litros')>0 ? sum(prev,'km')/sum(prev,'litros') : null;
+    const trendPct=(last&&prevAvg)?(last.rend/prevAvg-1)*100:null;
+    const byDate=arr.slice().sort((a,b)=>(a.fecha<b.fecha?1:a.fecha>b.fecha?-1:b.odometro-a.odometro));
+    return {
+      patente, cargas:arr.length, ultimaCarga:byDate[0], segs, last, prevAvg, trendPct,
+      avg: sum(segs,'litros')>0 ? sum(segs,'km')/sum(segs,'litros') : null,
+      costoKm: sum(segs,'km')>0 ? sum(segs,'monto')/sum(segs,'km') : null,
+      alerta: !!(last && prev.length>=2 && trendPct<=-FUEL_ALERT_PCT)
+    };
+  }).sort((a,b)=>a.ultimaCarga.fecha<b.ultimaCarga.fecha?1:-1);
+}
+
+// ── Dashboard ──
+async function getDashboardData(){
+  const first=localToday().substring(0,8)+'01';
+  let recent, monthRows, fuel;
+  if(useSupabase){
+    [recent,monthRows,fuel]=await Promise.all([
+      sbFetch('receipts?order=fecha.desc,num.desc&limit=5'),        // solo los últimos 5, no todos
+      sbFetch('receipts?select=total&fecha=gte.'+first),           // solo los totales del mes
+      getFuel().catch(()=>null)                                     // si falla (tabla sin crear), el resto igual se muestra
+    ]);
+  } else {
+    const all=LS.receipts.slice().sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||'')||(b.num||0)-(a.num||0));
+    recent=all.slice(0,5); monthRows=all.filter(r=>r.fecha>=first); fuel=LS.fuel;
+  }
+  return {recent,monthRows,fuel,first};
+}
+
+async function renderDashboard(){
+  const root=document.getElementById('receipt-list');
+  root.innerHTML='<div class="empty"><i class="ti ti-refresh" style="opacity:.4;animation:spin .7s linear infinite"></i><br>Cargando...</div>';
+  try{
+    const d=await getDashboardData();
+    _dashRecent=d.recent; _fuelCache=d.fuel||[];
+    const facturado=d.monthRows.reduce((a,r)=>a+Number(r.total||0),0);
+    const stats=fuelStats(_fuelCache), main=stats[0]||null;
+    const mes=_fuelCache.filter(l=>l.fecha>=d.first);
+    const litrosMes=mes.reduce((a,l)=>a+Number(l.litros||0),0);
+    const gastoMes=mes.reduce((a,l)=>a+Number(l.monto||0),0);
+    const pctIng=(facturado>0&&gastoMes>0)?Math.round(gastoMes/facturado*100):null;
+    const trend=(main&&main.trendPct!==null)
+      ? `<span class="${main.trendPct>=0?'trend-up':'trend-down'}">${main.trendPct>=0?'▲':'▼'} ${Math.abs(Math.round(main.trendPct))}%</span>` : '';
+
+    // 1) Tarjetas del mes
+    let html=`<div class="sg">
+      <div class="st"><div class="sl">Recibos del mes</div><div class="sv">${d.monthRows.length}</div></div>
+      <div class="st"><div class="sl">Facturado del mes</div><div class="sv blue">${fmtCLP(facturado)}</div></div>
+      <div class="st"><div class="sl">Combustible del mes</div><div class="sv">${d.fuel===null?'—':fmtCLP(gastoMes)}</div>
+        <div class="sl">${d.fuel===null?'':fmtNum(litrosMes)+' L · '+mes.length+(mes.length===1?' carga':' cargas')+(pctIng!==null?' · '+pctIng+'% de lo facturado':'')}</div></div>
+      <div class="st"><div class="sl">Rendimiento${main?' · '+escapeHTML(main.patente):''}</div>
+        <div class="sv">${main&&main.avg?fmtNum(main.avg)+' km/L':'—'}</div>
+        <div class="sl">${main&&main.last?'Último tramo '+fmtNum(main.last.rend)+' '+trend:'Registra 2 cargas con estanque lleno'}</div></div>
+    </div>`;
+
+    // 2) Alertas de consumo anormal
+    stats.filter(s=>s.alerta).forEach(s=>{
+      html+=`<div class="dash-alert bad"><i class="ti ti-alert-triangle"></i><div><b>${escapeHTML(s.patente)}: consumo anormal.</b>
+        El último tramo rindió ${fmtNum(s.last.rend)} km/L, un ${Math.abs(Math.round(s.trendPct))}% menos que su promedio anterior (${fmtNum(s.prevAvg)} km/L).
+        Revisa fugas, presión de neumáticos o cargas sin registrar.</div></div>`;
+    });
+
+    // 3) Últimos recibos
+    html+=`<div class="card"><div class="cardhead"><div class="ct">Últimos recibos</div>
+      <button class="btn sm" onclick="verTodosRecibos()">Ver todos</button></div>`;
+    html+= d.recent.length ? d.recent.map(r=>`
+      <div class="ri" onclick="openReceipt('${r.id}')">
+        <div class="rh"><div>
+          <span class="rn">Recibo #${r.num}</span>
+          ${r.vehiculo?`<span class="tag ${r.vehiculo}" style="margin-left:5px">${r.vehiculo}</span>`:''}
+          <div class="rd">${fmtDate(r.fecha)}${r.desde&&r.hasta?' · '+escapeHTML(r.desde)+' → '+escapeHTML(r.hasta):''}</div>
+          <div class="rw">${escapeHTML(r.solicita||'')}${r.empresa?' · '+escapeHTML(r.empresa):''}</div>
+        </div><div class="rtot">${fmtCLP(r.total)}</div></div>
+      </div>`).join('')
+      : '<div class="empty compact">Aún no hay recibos. Crea el primero en "Nuevo".</div>';
+    html+='</div>';
+
+    // 4) Combustible
+    html+=`<div class="card"><div class="cardhead"><div class="ct">Combustible</div>
+      <button class="btn sm primary" onclick="openFuelModal()"><i class="ti ti-plus"></i> Registrar carga</button></div>`;
+    if(d.fuel===null){
+      html+='<div class="empty compact">No se pudo cargar el combustible. Falta ejecutar combustible_setup.sql en Supabase.</div>';
+    } else if(!_fuelCache.length){
+      html+='<div class="empty compact">Aún no hay cargas. Registra la primera; con 2 cargas de estanque lleno ya se calcula el rendimiento.</div>';
+    } else {
+      html+=stats.map(s=>`<div class="fuel-row"><div>
+        <div class="fuel-main"><span class="tag pat">${escapeHTML(s.patente)}</span> ${s.avg?fmtNum(s.avg)+' km/L en promedio':'rendimiento aún sin calcular'}</div>
+        <div class="fuel-sub">${s.last
+          ? 'Último tramo '+fmtNum(s.last.rend)+' km/L · '+fmtCLP(Math.round(s.costoKm))+' por km · '+s.cargas+' cargas'
+          : 'Falta otra carga con estanque lleno para calcular'}</div></div></div>`).join('');
+      const ult=_fuelCache.slice().sort((a,b)=>(a.fecha<b.fecha?1:a.fecha>b.fecha?-1:b.odometro-a.odometro)).slice(0,3);
+      html+='<div class="fuel-sep">Últimas cargas</div>'+ult.map(l=>`<div class="fuel-row"><div>
+        <div class="fuel-main">${fmtDate(l.fecha)} · ${escapeHTML(l.patente)}</div>
+        <div class="fuel-sub">${fmtNum(l.litros)} L · ${fmtCLP(l.monto)} · ${fmtCLP(Math.round(l.monto/l.litros))}/L · ${Number(l.odometro).toLocaleString('es-CL')} km${l.lleno?'':' · parcial'}</div></div>
+        <button class="btn sm danger" onclick="deleteFuel('${l.id}')" aria-label="Eliminar carga"><i class="ti ti-trash"></i></button></div>`).join('');
+    }
+    html+='</div>';
+    root.innerHTML=html;
+  }catch(e){ root.innerHTML='<div class="empty">Error al cargar el dashboard</div>'; }
+}
+
+// "Ver todos": la lista completa de recibos vive en la pestaña Resumen (sin límite de fechas)
+function verTodosRecibos(){
+  document.getElementById('sum-from').value=''; document.getElementById('sum-to').value='';
+  nav('resumen'); calcSummary();
+}
+
+// ── Registrar una carga ──
+let _fuelRestoring=false;
+const fuelDraftKey=()=> 'tl_fuel_draft_'+(currentUser?currentUser.id:'local');
+const FUEL_IDS=['fu-fecha','fu-patente','fu-patente-new','fu-litros','fu-monto','fu-odo','fu-notas'];
+
+function saveFuelDraft(){
+  if(_fuelRestoring) return;
+  const d={}; FUEL_IDS.forEach(id=>{ d[id]=document.getElementById(id).value; });
+  d.lleno=document.getElementById('fu-lleno').checked;
+  try{ localStorage.setItem(fuelDraftKey(),JSON.stringify(d)); }catch(e){}
+}
+function clearFuelDraft(){ try{ localStorage.removeItem(fuelDraftKey()); }catch(e){} }
+
+function fuelLastHint(){
+  const sel=document.getElementById('fu-patente').value;
+  const p=normPat(sel==='__nueva__'?document.getElementById('fu-patente-new').value:sel);
+  const prev=_fuelCache.filter(l=>l.patente===p).sort((a,b)=>b.odometro-a.odometro)[0];
+  document.getElementById('fu-last').textContent = prev
+    ? 'Última carga de '+p+': '+Number(prev.odometro).toLocaleString('es-CL')+' km ('+fmtDate(prev.fecha)+')' : '';
+}
+function fuelPatenteChange(){
+  const nueva=document.getElementById('fu-patente').value==='__nueva__';
+  document.getElementById('fu-patente-new').style.display=nueva?'':'none';
+  fuelLastHint();
+}
+function fuelHint(){
+  const l=Number(document.getElementById('fu-litros').value), m=Number(document.getElementById('fu-monto').value);
+  document.getElementById('fu-hint').textContent=(l>0&&m>0)?'Precio por litro: '+fmtCLP(Math.round(m/l)):'';
+}
+
+function openFuelModal(){
+  const sel=document.getElementById('fu-patente');
+  const last=localStorage.getItem('tl_last_patente')||'';
+  const pats=[...new Set([..._fuelCache.map(l=>l.patente),...(last?[last]:[])])].sort();
+  sel.innerHTML='<option value="">— Seleccionar —</option>'+pats.map(p=>`<option value="${escapeHTML(p)}">${escapeHTML(p)}</option>`).join('')+'<option value="__nueva__">+ Nueva patente…</option>';
+  document.getElementById('fu-fecha').value=localToday();
+  sel.value = pats.length===0 ? '__nueva__' : (pats.includes(last)?last:(pats.length===1?pats[0]:''));
+  ['fu-patente-new','fu-litros','fu-monto','fu-odo','fu-notas'].forEach(id=>{ document.getElementById(id).value=''; });
+  document.getElementById('fu-lleno').checked=true;
+  document.getElementById('fu-err').textContent='';
+  // ¿Hay un borrador (se apagó la pantalla o se cerró la app a medias)? Se recupera.
+  let d=null; try{ d=JSON.parse(localStorage.getItem(fuelDraftKey())||'null'); }catch(e){}
+  if(d){
+    _fuelRestoring=true;
+    try{
+      FUEL_IDS.forEach(id=>{ if(d[id]!==undefined) document.getElementById(id).value=d[id]; });
+      document.getElementById('fu-lleno').checked=d.lleno!==false;
+    } finally { _fuelRestoring=false; }
+  }
+  const btn=document.getElementById('fu-btn'); btn.disabled=false; btn.innerHTML='<i class="ti ti-check"></i> Guardar';
+  fuelPatenteChange(); fuelHint();
+  document.getElementById('fuel-modal').classList.add('open');
+}
+// discard=true (botón Cancelar) borra el borrador; la X y tocar el fondo lo conservan
+function closeFuelModal(discard){
+  document.getElementById('fuel-modal').classList.remove('open');
+  if(discard) clearFuelDraft();
+}
+
+async function saveFuel(){
+  const err=document.getElementById('fu-err'); err.textContent='';
+  const fecha=document.getElementById('fu-fecha').value;
+  const sel=document.getElementById('fu-patente').value;
+  const patente=normPat(sel==='__nueva__'?document.getElementById('fu-patente-new').value:sel);
+  const litros=Number(document.getElementById('fu-litros').value);
+  const monto=Number(document.getElementById('fu-monto').value);
+  const odo=Math.round(Number(document.getElementById('fu-odo').value));
+  const lleno=document.getElementById('fu-lleno').checked;
+  const notas=document.getElementById('fu-notas').value.trim();
+
+  if(!fecha){ err.textContent='Indica la fecha'; return; }
+  if(patente.length<4){ err.textContent='Ingresa la patente del vehículo (ej: ABCD12)'; return; }
+  if(!(litros>0)){ err.textContent='Ingresa los litros cargados'; return; }
+  if(!(monto>0)){ err.textContent='Ingresa el monto total pagado'; return; }
+  if(!(odo>0)){ err.textContent='Ingresa el kilometraje (odómetro)'; return; }
+  // El odómetro nunca puede ser menor al de la carga anterior del mismo vehículo
+  const prev=_fuelCache.filter(l=>l.patente===patente&&l.fecha<=fecha).sort((a,b)=>b.odometro-a.odometro)[0];
+  if(prev && odo<prev.odometro){
+    err.textContent='El odómetro ('+odo.toLocaleString('es-CL')+' km) es menor al de la carga anterior ('+Number(prev.odometro).toLocaleString('es-CL')+' km). Revisa el número.';
+    return;
+  }
+  const btn=document.getElementById('fu-btn');
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span> Guardando...';
+  try{
+    await addFuelDB({fecha,patente,litros,monto,odometro:odo,lleno,notas:notas||null});
+    localStorage.setItem('tl_last_patente',patente);
+    clearFuelDraft(); closeFuelModal(false);
+    toast('Carga registrada ✓');
+    renderDashboard();
+  }catch(e){
+    err.textContent=/combustible|PGRST205|relation/i.test(e.message)?'Falta ejecutar combustible_setup.sql en Supabase.':'Error: '+e.message;
+    btn.disabled=false; btn.innerHTML='<i class="ti ti-check"></i> Guardar';
+  }
+}
+
+async function deleteFuel(id){
+  if(!confirm('¿Eliminar esta carga de combustible?')) return;
+  try{ await delFuelDB(id); toast('Carga eliminada'); renderDashboard(); }
+  catch(e){ toast('Error: '+e.message); }
+}
+
+// Guardar el borrador de la carga mientras se escribe
+const _fm=document.getElementById('fuel-modal');
+if(_fm){ _fm.addEventListener('input',saveFuelDraft); _fm.addEventListener('change',saveFuelDraft); }
 
 // ── 12. Cronómetro de servicio + borrador automático ──────
 // Los cronómetros guardan marcas de tiempo ABSOLUTAS (hora real), no un contador
@@ -1183,7 +1441,7 @@ function translateError(msg){
 }
 
 // ── 13. Init ──────────────────────────────────────────────
-const today=new Date().toISOString().split('T')[0];
+const today=localToday();
 document.getElementById('sum-from').value=today.substring(0,8)+'01';
 document.getElementById('sum-to').value=today;
 
