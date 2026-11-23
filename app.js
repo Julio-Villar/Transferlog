@@ -897,6 +897,33 @@ function dateAddDays(str,n){
 }
 const fmtNum=(n,d=1)=>Number(n).toLocaleString('es-CL',{minimumFractionDigits:d,maximumFractionDigits:d});
 const normPat=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+const fmtLitros=n=>Number(n).toLocaleString('es-CL',{maximumFractionDigits:2});
+
+// Acepta coma o punto como separador decimal (el teclado del celular puede mostrar cualquiera)
+function parseDec(v){ const n=Number(String(v==null?'':v).trim().replace(',','.')); return isFinite(n)?n:NaN; }
+function decFilter(el){ el.value=el.value.replace(/[^0-9.,]/g,''); }
+
+// ── Período de trabajo ──
+// Empieza el día N de un mes y termina el día N-1 del mes siguiente (ej.: N=20 → del 20 al 19).
+// N=1 equivale al mes calendario. N va de 1 a 28 para que exista en todos los meses.
+function workPeriod(todayStr,startDay){
+  const sd=Math.min(28,Math.max(1,Math.round(Number(startDay))||1));
+  const [y,m,d]=todayStr.split('-').map(Number);
+  const mi=d>=sd ? m-1 : m-2;                       // mes (base 0) en que empezó el período vigente
+  const iso=t=>t.getUTCFullYear()+'-'+String(t.getUTCMonth()+1).padStart(2,'0')+'-'+String(t.getUTCDate()).padStart(2,'0');
+  const from=new Date(Date.UTC(y,mi,sd)), nextFrom=new Date(Date.UTC(y,mi+1,sd));
+  return {from:iso(from), to:iso(new Date(nextFrom.getTime()-86400000)), startDay:sd};
+}
+function getPeriodStartDay(){
+  return Math.min(28,Math.max(1,Math.round(Number((_settingsCache||LS.settings).periodStartDay))||1));
+}
+function currentPeriod(){ return workPeriod(localToday(),getPeriodStartDay()); }
+// Rango por defecto del Resumen = período vigente (se define en Admin → Configuración)
+function applyPeriodDefaults(){
+  const p=currentPeriod();
+  document.getElementById('sum-from').value=p.from;
+  document.getElementById('sum-to').value=p.to;
+}
 
 let _dashRecent=[];   // últimos recibos mostrados (para abrir el detalle sin volver a consultar)
 let _fuelCache=[];    // cargas de combustible cargadas (para validar odómetro y listar patentes)
@@ -958,19 +985,19 @@ function fuelStats(loads){
 
 // ── Dashboard ──
 async function getDashboardData(){
-  const first=localToday().substring(0,8)+'01';
+  const per=currentPeriod(), first=per.from, last=per.to;
   let recent, monthRows, fuel;
   if(useSupabase){
     [recent,monthRows,fuel]=await Promise.all([
-      sbFetch('receipts?order=fecha.desc,num.desc&limit=5'),        // solo los últimos 5, no todos
-      sbFetch('receipts?select=total&fecha=gte.'+first),           // solo los totales del mes
-      getFuel().catch(()=>null)                                     // si falla (tabla sin crear), el resto igual se muestra
+      sbFetch('receipts?order=fecha.desc,num.desc&limit=5'),                              // solo los últimos 5, no todos
+      sbFetch('receipts?select=total&fecha=gte.'+first+'&fecha=lte.'+last),               // solo los totales del período
+      getFuel().catch(()=>null)                                                           // si falla (tabla sin crear), el resto igual se muestra
     ]);
   } else {
     const all=LS.receipts.slice().sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||'')||(b.num||0)-(a.num||0));
-    recent=all.slice(0,5); monthRows=all.filter(r=>r.fecha>=first); fuel=LS.fuel;
+    recent=all.slice(0,5); monthRows=all.filter(r=>r.fecha>=first&&r.fecha<=last); fuel=LS.fuel;
   }
-  return {recent,monthRows,fuel,first};
+  return {recent,monthRows,fuel,first,last};
 }
 
 async function renderDashboard(){
@@ -981,7 +1008,7 @@ async function renderDashboard(){
     _dashRecent=d.recent; _fuelCache=d.fuel||[];
     const facturado=d.monthRows.reduce((a,r)=>a+Number(r.total||0),0);
     const stats=fuelStats(_fuelCache), main=stats[0]||null;
-    const mes=_fuelCache.filter(l=>l.fecha>=d.first);
+    const mes=_fuelCache.filter(l=>l.fecha>=d.first&&l.fecha<=d.last);
     const litrosMes=mes.reduce((a,l)=>a+Number(l.litros||0),0);
     const gastoMes=mes.reduce((a,l)=>a+Number(l.monto||0),0);
     const pctIng=(facturado>0&&gastoMes>0)?Math.round(gastoMes/facturado*100):null;
@@ -989,11 +1016,12 @@ async function renderDashboard(){
       ? `<span class="${main.trendPct>=0?'trend-up':'trend-down'}">${main.trendPct>=0?'▲':'▼'} ${Math.abs(Math.round(main.trendPct))}%</span>` : '';
 
     // 1) Tarjetas del mes
-    let html=`<div class="sg">
-      <div class="st"><div class="sl">Recibos del mes</div><div class="sv">${d.monthRows.length}</div></div>
-      <div class="st"><div class="sl">Facturado del mes</div><div class="sv blue">${fmtCLP(facturado)}</div></div>
-      <div class="st"><div class="sl">Combustible del mes</div><div class="sv">${d.fuel===null?'—':fmtCLP(gastoMes)}</div>
-        <div class="sl">${d.fuel===null?'':fmtNum(litrosMes)+' L · '+mes.length+(mes.length===1?' carga':' cargas')+(pctIng!==null?' · '+pctIng+'% de lo facturado':'')}</div></div>
+    let html=`<div class="hint" style="margin:0 2px 8px">Período de trabajo: ${fmtDate(d.first)} al ${fmtDate(d.last)}</div>
+    <div class="sg">
+      <div class="st"><div class="sl">Recibos del período</div><div class="sv">${d.monthRows.length}</div></div>
+      <div class="st"><div class="sl">Facturado del período</div><div class="sv blue">${fmtCLP(facturado)}</div></div>
+      <div class="st"><div class="sl">Combustible del período</div><div class="sv">${d.fuel===null?'—':fmtCLP(gastoMes)}</div>
+        <div class="sl">${d.fuel===null?'':fmtLitros(litrosMes)+' L · '+mes.length+(mes.length===1?' carga':' cargas')+(pctIng!==null?' · '+pctIng+'% de lo facturado':'')}</div></div>
       <div class="st"><div class="sl">Rendimiento${main?' · '+escapeHTML(main.patente):''}</div>
         <div class="sv">${main&&main.avg?fmtNum(main.avg)+' km/L':'—'}</div>
         <div class="sl">${main&&main.last?'Último tramo '+fmtNum(main.last.rend)+' '+trend:'Registra 2 cargas con estanque lleno'}</div></div>
@@ -1037,7 +1065,7 @@ async function renderDashboard(){
       const ult=_fuelCache.slice().sort((a,b)=>(a.fecha<b.fecha?1:a.fecha>b.fecha?-1:b.odometro-a.odometro)).slice(0,3);
       html+='<div class="fuel-sep">Últimas cargas</div>'+ult.map(l=>`<div class="fuel-row"><div>
         <div class="fuel-main">${fmtDate(l.fecha)} · ${escapeHTML(l.patente)}</div>
-        <div class="fuel-sub">${fmtNum(l.litros)} L · ${fmtCLP(l.monto)} · ${fmtCLP(Math.round(l.monto/l.litros))}/L · ${Number(l.odometro).toLocaleString('es-CL')} km${l.lleno?'':' · parcial'}</div></div>
+        <div class="fuel-sub">${fmtLitros(l.litros)} L · ${fmtCLP(l.monto)} · ${fmtCLP(Math.round(l.monto/l.litros))}/L · ${Number(l.odometro).toLocaleString('es-CL')} km${l.lleno?'':' · parcial'}</div></div>
         <button class="btn sm danger" onclick="deleteFuel('${l.id}')" aria-label="Eliminar carga"><i class="ti ti-trash"></i></button></div>`).join('');
     }
     html+='</div>';
@@ -1077,7 +1105,7 @@ function fuelPatenteChange(){
   fuelLastHint();
 }
 function fuelHint(){
-  const l=Number(document.getElementById('fu-litros').value), m=Number(document.getElementById('fu-monto').value);
+  const l=parseDec(document.getElementById('fu-litros').value), m=Number(document.getElementById('fu-monto').value);
   document.getElementById('fu-hint').textContent=(l>0&&m>0)?'Precio por litro: '+fmtCLP(Math.round(m/l)):'';
 }
 
@@ -1115,7 +1143,7 @@ async function saveFuel(){
   const fecha=document.getElementById('fu-fecha').value;
   const sel=document.getElementById('fu-patente').value;
   const patente=normPat(sel==='__nueva__'?document.getElementById('fu-patente-new').value:sel);
-  const litros=Number(document.getElementById('fu-litros').value);
+  const litros=Math.round(parseDec(document.getElementById('fu-litros').value)*100)/100;
   const monto=Number(document.getElementById('fu-monto').value);
   const odo=Math.round(Number(document.getElementById('fu-odo').value));
   const lleno=document.getElementById('fu-lleno').checked;
@@ -1123,7 +1151,7 @@ async function saveFuel(){
 
   if(!fecha){ err.textContent='Indica la fecha'; return; }
   if(patente.length<4){ err.textContent='Ingresa la patente del vehículo (ej: ABCD12)'; return; }
-  if(!(litros>0)){ err.textContent='Ingresa los litros cargados'; return; }
+  if(!(litros>0)){ err.textContent='Ingresa los litros cargados (ej: 32,5)'; return; }
   if(!(monto>0)){ err.textContent='Ingresa el monto total pagado'; return; }
   if(!(odo>0)){ err.textContent='Ingresa el kilometraje (odómetro)'; return; }
   // El odómetro nunca puede ser menor al de la carga anterior del mismo vehículo
@@ -1441,9 +1469,7 @@ function translateError(msg){
 }
 
 // ── 13. Init ──────────────────────────────────────────────
-const today=localToday();
-document.getElementById('sum-from').value=today.substring(0,8)+'01';
-document.getElementById('sum-to').value=today;
+applyPeriodDefaults();   // rango inicial del Resumen: período de trabajo vigente
 
 async function onUserLoggedIn(user){
   currentUser=user; useSupabase=true;
@@ -1453,7 +1479,7 @@ async function onUserLoggedIn(user){
   _loggedUserId=user.id;
   document.getElementById('user-email').textContent=user.email;
   hideAuthScreen();
-  await Promise.all([ loadSettings(), loadCatalogs() ]);
+  await Promise.all([ loadSettings(), loadCatalogs() ]); applyPeriodDefaults();
   renderCatalogControls();
   initForm();
   restoreDraft();
@@ -1465,7 +1491,7 @@ async function onUserLoggedIn(user){
 async function initApp(){
   if(!_sb){
     // Sin Supabase: modo local directo
-    await Promise.all([ loadSettings(), loadCatalogs() ]);
+    await Promise.all([ loadSettings(), loadCatalogs() ]); applyPeriodDefaults();
     renderCatalogControls(); initForm(); restoreDraft(); _formReady=true; renderReceipts();
     return;
   }
