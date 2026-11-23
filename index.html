@@ -268,7 +268,7 @@
       <input type="text" id="fu-patente-new" placeholder="Ej: ABCD12" maxlength="8" autocapitalize="characters" autocomplete="off" oninput="fuelLastHint()" style="display:none;margin-top:6px">
     </div>
     <div class="r2">
-      <div class="field"><label>Litros</label><input type="number" id="fu-litros" inputmode="decimal" step="0.01" min="0" placeholder="0" oninput="fuelHint()"></div>
+      <div class="field"><label>Litros</label><input type="text" id="fu-litros" inputmode="decimal" autocomplete="off" placeholder="0,0" oninput="decFilter(this);fuelHint()"></div>
       <div class="field"><label>Monto total ($)</label><input type="number" id="fu-monto" inputmode="numeric" min="0" placeholder="0" oninput="fuelHint()"></div>
     </div>
     <div id="fu-hint" class="hint"></div>
@@ -373,6 +373,6 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="app.js?v=3.4"></script>
+<script src="app.js?v=3.5"></script>
 </body>
 </html>
